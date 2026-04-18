@@ -31,6 +31,17 @@ def _board_bbox(board):
     return result
 
 
+def board_size_mm(board) -> Optional[tuple]:
+    """Return (width_mm, height_mm) from the board's Edge.Cuts bounding box, or None."""
+    try:
+        bbox = _board_bbox(board)
+        if bbox:
+            return (bbox.size.x / NM_PER_MM, bbox.size.y / NM_PER_MM)
+    except Exception:
+        pass
+    return None
+
+
 def generate_enclosure_pdf(
     board,
     config: Dict,

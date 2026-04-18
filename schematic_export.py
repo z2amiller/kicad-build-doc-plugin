@@ -1,12 +1,15 @@
 """Schematic PDF export and footer-stamping via kicad-cli."""
+from __future__ import annotations
 
 import io
 import os
 import subprocess
 from typing import Callable, Optional
 
+from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas as rl_canvas
 
+from cli_utils import find_kicad_cli, kicad_env
 from footprint_utils import get_board_path
 
 
@@ -34,36 +37,19 @@ def export_schematic_pdf(
 
     _log(f"  Root schematic: {os.path.basename(root_sch)}")
 
-    import shutil
-
-    cli = shutil.which("kicad-cli") or next(
-        (
-            c
-            for c in [
-                "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
-                "/usr/local/bin/kicad-cli",
-                "/usr/bin/kicad-cli",
-            ]
-            if os.path.exists(c)
-        ),
-        None,
-    )
+    cli = find_kicad_cli()
     if not cli:
         _log("  kicad-cli not found — schematic skipped.")
         return None
 
     out_pdf = os.path.join(tmpdir, "schematic.pdf")
-    env = os.environ.copy()
-    env["DYLD_FRAMEWORK_PATH"] = "/Applications/KiCad/KiCad.app/Contents/Frameworks"
-    env["DYLD_LIBRARY_PATH"] = "/Applications/KiCad/KiCad.app/Contents/Frameworks"
-
     try:
         result = subprocess.run(
             [cli, "sch", "export", "pdf", "--black-and-white", "--output", out_pdf, root_sch],
             capture_output=True,
             text=True,
             timeout=120,
-            env=env,
+            env=kicad_env(),
         )
         if result.returncode == 0 and os.path.exists(out_pdf):
             _log("  Schematic exported OK.")
@@ -85,8 +71,6 @@ def stamp_schematic_footer(
     log: Optional[Callable] = None,
 ) -> str:
     """Overlay a project-name + global page-number footer on every schematic page."""
-    from pypdf import PdfReader, PdfWriter
-
     _log = log or (lambda msg: None)
 
     reader = PdfReader(sch_pdf)
