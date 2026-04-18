@@ -9,7 +9,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas as rl_canvas
 
-from footprint_utils import get_field, get_fp_id
+from footprint_utils import get_field, get_fp_id, safe_get_footprints, safe_get_shapes
+from panel_config import FootprintHoleConfig, PanelConfig
 from pdf_utils import MARGIN
 
 MM = 72.0 / 25.4  # PDF points per mm
@@ -19,7 +20,7 @@ NM_PER_MM = 1_000_000  # kipy uses nanometres
 
 def _board_bbox(board):
     """Return merged bounding box of all Edge.Cuts shapes as a kipy Box2, or None."""
-    edge_shapes = [s for s in board.get_shapes() if s.layer == BoardLayer.BL_Edge_Cuts]
+    edge_shapes = [s for s in safe_get_shapes(board) if s.layer == BoardLayer.BL_Edge_Cuts]
     if not edge_shapes:
         return None
     bboxes = board.get_item_bounding_box(edge_shapes)
@@ -161,7 +162,7 @@ class _EnclosureRenderer:
 
     def draw_footprint_holes(self, board, fp_config: Dict, log) -> None:
         """Iterate fp_config footprints and draw their holes."""
-        for fp in board.get_footprints():
+        for fp in safe_get_footprints(board, log):
             fp_id = get_fp_id(fp)
             if fp_id not in fp_config:
                 continue
@@ -169,20 +170,20 @@ class _EnclosureRenderer:
             rx, ry = self.fp_to_enc(
                 fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM
             )
-            ex = rx + cfg["offset_x"]
-            ey = ry + cfg["offset_y"]
-            label = cfg["label"] or get_field(fp, "Control") or fp.reference_field.text.value
-            self.draw_hole(ex, ey, cfg["hole_dia"], label)
+            ex = rx + cfg.offset_x
+            ey = ry + cfg.offset_y
+            label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
+            self.draw_hole(ex, ey, cfg.hole_dia, label)
             log(
                 f"    {label}: fp-origin ({rx:.2f}, {ry:.2f})"
-                f"  offset ({cfg['offset_x']:+.1f}, {cfg['offset_y']:+.1f})"
+                f"  offset ({cfg.offset_x:+.1f}, {cfg.offset_y:+.1f})"
                 f"  hole ({ex:.2f}, {ey:.2f}) mm"
             )
 
     def draw_led_holes(self, board, fp_config: Dict, log) -> None:
         """Draw holes for back-side LEDs/diodes."""
         led_re = re.compile(r"^(D|LED)\d", re.IGNORECASE)
-        for fp in board.get_footprints():
+        for fp in safe_get_footprints(board, log):
             ref = fp.reference_field.text.value
             if not led_re.match(ref):
                 continue
@@ -191,28 +192,28 @@ class _EnclosureRenderer:
             fp_id = get_fp_id(fp)
             cfg = fp_config.get(
                 fp_id,
-                {"hole_dia": 3.2, "offset_x": 0.0, "offset_y": 0.0, "label": "LED"},
+                FootprintHoleConfig(hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED"),
             )
             ex, ey = self.fp_to_enc(
                 fp.position.x / NM_PER_MM,
                 fp.position.y / NM_PER_MM,
-                cfg["offset_x"],
-                cfg["offset_y"],
+                cfg.offset_x,
+                cfg.offset_y,
             )
-            label = cfg.get("label") or "LED"
-            self.draw_hole(ex, ey, cfg["hole_dia"], label)
+            label = cfg.label or "LED"
+            self.draw_hole(ex, ey, cfg.hole_dia, label)
             log(
                 f"    LED (back-side {ref}): enc ({ex:.1f}, {ey:.1f}) mm"
-                f"  \u00f8{cfg['hole_dia']} mm"
+                f"  \u00f8{cfg.hole_dia} mm"
             )
 
     def draw_fixed_holes(self, fixed_holes: List, log) -> None:
         """Draw fixed hole list."""
         for hole in fixed_holes:
-            self.draw_hole(hole["x"], hole["y"], hole["dia"], hole["label"])
+            self.draw_hole(hole.x, hole.y, hole.dia, hole.label)
             log(
-                f"    {hole['label']} (fixed): ({hole['x']:.1f}, {hole['y']:.1f}) mm"
-                f"  \u00f8{hole['dia']} mm"
+                f"    {hole.label} (fixed): ({hole.x:.1f}, {hole.y:.1f}) mm"
+                f"  \u00f8{hole.dia} mm"
             )
 
     # ── Annotation ────────────────────────────────────────────────────────────
@@ -301,7 +302,7 @@ class _EnclosureRenderer:
 
 def generate_enclosure_pdf(
     board,
-    config: Dict,
+    config: PanelConfig,
     project_name: str,
     author: str,
     total_pages: int,
@@ -317,12 +318,12 @@ def generate_enclosure_pdf(
     bounding-box centre.
     """
     _log = log or (lambda msg: None)
-    enc = config["enclosure"]
-    enc_w: float = enc["width"]
-    enc_h: float = enc["height"]
-    enc_d: float = enc.get("depth", 35.0)
-    fp_config: Dict = config["footprints"]
-    fixed_holes: List = config["fixed_holes"]
+    enc = config.enclosure
+    enc_w: float = enc.width
+    enc_h: float = enc.height
+    enc_d: float = enc.depth
+    fp_config: Dict = config.footprints
+    fixed_holes: List = config.fixed_holes
 
     pw, ph = letter
 
@@ -387,12 +388,12 @@ def _find_top_anchor(board, fp_config: Dict) -> Optional[float]:
     we anchor on the topmost *hole* rather than the topmost footprint *origin*.
     """
     top_pcb_y: Optional[float] = None
-    for fp in board.get_footprints():
+    for fp in safe_get_footprints(board):
         fp_id = get_fp_id(fp)
         if fp_id not in fp_config:
             continue
         cfg = fp_config[fp_id]
-        effective_y = fp.position.y / NM_PER_MM - cfg["offset_y"]
+        effective_y = fp.position.y / NM_PER_MM - cfg.offset_y
         if top_pcb_y is None or effective_y < top_pcb_y:
             top_pcb_y = effective_y
     return top_pcb_y

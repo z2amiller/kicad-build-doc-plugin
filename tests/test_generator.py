@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pypdf import PdfReader
 
-from build_doc_generator import BuildDocGenerator
+from build_doc_generator import BuildDocGenerator, GeneratorParams
+from panel_config import EnclosureConfig, PanelConfig
 
 
 # ── Mock board fixture ────────────────────────────────────────────────────────
@@ -36,43 +37,18 @@ def _make_board(tmp_path):
 
 
 def _make_params(tmp_path, **flags):
-    defaults = {
-        "include_cover": False,
-        "include_bom": False,
-        "include_enclosure": False,
-        "include_sch": False,
-    }
-    defaults.update(flags)
-    return {
-        "project_name": "Test Project",
-        "author": "Tester",
-        "revision": "1.0",
-        "output_path": str(tmp_path / "out.pdf"),
-        "sch_path": "",
-        **defaults,
-    }
+    return GeneratorParams(
+        project_name="Test Project",
+        author="Tester",
+        revision="1.0",
+        output_path=str(tmp_path / "out.pdf"),
+        sch_path="",
+        include_cover=flags.get("include_cover", False),
+        include_bom=flags.get("include_bom", False),
+        include_enclosure=flags.get("include_enclosure", False),
+        include_sch=flags.get("include_sch", False),
+    )
 
-
-# Patches applied to every generator test so we don't need kicad-cli or kipy
-_PATCHES = [
-    patch("board_image.export_board_pdf", return_value=None),
-    patch("enclosure_template.board_size_mm", return_value=None),
-    patch("enclosure_template._board_bbox", return_value=None),
-    patch("panel_config.load_panel_config", return_value={
-        "enclosure": {
-            "width_mm": 125, "height_mm": 50,
-            "top_jack_row_mm": 12, "top_pot_row_mm": 25,
-            "margin_mm": 7,
-        },
-        "footprints": {},
-    }),
-]
-
-
-def _apply_patches(fn):
-    for p in reversed(_PATCHES):
-        fn = p(fn)
-    return fn
 
 
 def _fake_enclosure_pdf(board, config, project_name, author,
@@ -99,11 +75,11 @@ def test_generate_page_count(flags, expected_pages, tmp_path):
     with patch("board_image.export_board_pdf", return_value=None), \
          patch("build_doc_generator.board_size_mm", return_value=None), \
          patch("build_doc_generator.generate_enclosure_pdf", side_effect=_fake_enclosure_pdf), \
-         patch("build_doc_generator.load_panel_config", return_value={"enclosure": {}, "footprints": {}}):
+         patch("build_doc_generator.load_panel_config", return_value=PanelConfig(enclosure=EnclosureConfig(width=62, height=117), footprints={}, fixed_holes=[])):
         gen = BuildDocGenerator(board, params)
         gen.generate()
 
-    out = params["output_path"]
+    out = params.output_path
     assert os.path.exists(out)
     assert len(PdfReader(out).pages) == expected_pages
 
@@ -125,4 +101,4 @@ def test_output_pdf_exists(tmp_path):
          patch("build_doc_generator.board_size_mm", return_value=None):
         BuildDocGenerator(board, params).generate()
 
-    assert os.path.exists(params["output_path"])
+    assert os.path.exists(params.output_path)

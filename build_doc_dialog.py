@@ -143,21 +143,21 @@ class BuildDocDialog(wx.Dialog):
         dlg.Destroy()
 
     def on_generate(self, event):
-        from build_doc_generator import BuildDocGenerator
+        from build_doc_generator import BuildDocGenerator, GeneratorParams
 
-        params = {
-            "project_name": self.txt_name.GetValue().strip() or "Untitled",
-            "author":       self.txt_author.GetValue().strip(),
-            "revision":     self.txt_rev.GetValue().strip(),
-            "include_cover":     self.chk_cover.GetValue(),
-            "include_bom":       self.chk_bom.GetValue(),
-            "include_enclosure": self.chk_enc.GetValue(),
-            "include_sch":       self.chk_sch.GetValue(),
-            "sch_path":      self.txt_sch.GetValue().strip(),
-            "output_path":   self.txt_out.GetValue().strip(),
-        }
+        params = GeneratorParams(
+            project_name=self.txt_name.GetValue().strip() or "Untitled",
+            author=self.txt_author.GetValue().strip(),
+            revision=self.txt_rev.GetValue().strip(),
+            include_cover=self.chk_cover.GetValue(),
+            include_bom=self.chk_bom.GetValue(),
+            include_enclosure=self.chk_enc.GetValue(),
+            include_sch=self.chk_sch.GetValue(),
+            sch_path=self.txt_sch.GetValue().strip(),
+            output_path=self.txt_out.GetValue().strip(),
+        )
 
-        if not params["output_path"]:
+        if not params.output_path:
             wx.MessageBox("Please specify an output PDF path.", "Missing Output", wx.OK | wx.ICON_WARNING)
             return
 
@@ -165,7 +165,7 @@ class BuildDocDialog(wx.Dialog):
         try:
             gen = BuildDocGenerator(self.board, params, log=self.log)
             gen.generate()
-            self.log(f"Done → {params['output_path']}")
+            self.log(f"Done → {params.output_path}")
             self.btn_cancel.SetLabel("Close")
         except Exception:
             import traceback

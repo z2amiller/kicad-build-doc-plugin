@@ -15,7 +15,7 @@ from footprint_utils import get_board_path
 
 def export_schematic_pdf(
     board,
-    params: dict,
+    params,
     tmpdir: str,
     log: Optional[Callable] = None,
 ) -> Optional[str]:
@@ -28,7 +28,7 @@ def export_schematic_pdf(
     _log = log or (lambda msg: None)
     board_path = get_board_path(board)
     canonical = os.path.splitext(board_path)[0] + ".kicad_sch"
-    override = params.get("sch_path", "").strip()
+    override = params.sch_path.strip()
     root_sch = canonical if os.path.exists(canonical) else (override or canonical)
 
     if not os.path.exists(root_sch):

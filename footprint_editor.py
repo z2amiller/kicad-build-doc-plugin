@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, List, Optional
 
-from footprint_utils import get_field, get_fp_id, ref_sort_key
+from footprint_utils import get_field, get_fp_id, ref_sort_key, safe_get_footprints
 
 
 @dataclass
@@ -65,13 +65,21 @@ def load_footprints(board) -> List[FootprintRow]:
     from footprint_utils import friendly_footprint_type
 
     rows: List[FootprintRow] = []
-    for fp in board.get_footprints():
+    for fp in safe_get_footprints(board):
         ref = fp.reference_field.text.value
         if not ref or ref.startswith("~") or ref in ("REF**", ""):
             continue
 
+        control = get_field(fp, "Control")
+        if not control:
+            attrs = fp.attributes
+            if (attrs.exclude_from_bill_of_materials
+                    or attrs.exclude_from_position_files
+                    or attrs.do_not_populate):
+                continue
+
         desc = get_field(fp, "Description")
-        notes = resolve_notes(fp)
+        notes = get_field(fp, "Notes")
         fp_id = get_fp_id(fp)
         fp_type = friendly_footprint_type(ref, fp.definition.id.name)
 
@@ -88,7 +96,12 @@ def load_footprints(board) -> List[FootprintRow]:
         )
         rows.append(row)
 
-    rows.sort(key=lambda r: (r.value.lower(), ref_sort_key(r.ref)))
+    import re as _re
+    def _prefix(ref: str) -> str:
+        m = _re.match(r"[A-Za-z_]+", ref)
+        return m.group(0).upper() if m else ref
+
+    rows.sort(key=lambda r: (_prefix(r.ref), r.value.lower(), ref_sort_key(r.ref)))
     return rows
 
 

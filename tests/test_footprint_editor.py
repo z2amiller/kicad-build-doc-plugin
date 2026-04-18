@@ -23,6 +23,9 @@ def _make_fp(ref, value, fields=None, fp_id="Device:Generic", layer=None):
     fp.definition.id.library = fp_id.split(":")[0]
     fp.definition.id.name = fp_id.split(":")[1]
     fp.texts_and_fields = [_make_field(k, v) for k, v in (fields or {}).items()]
+    fp.attributes.exclude_from_bill_of_materials = False
+    fp.attributes.exclude_from_position_files = False
+    fp.attributes.do_not_populate = False
     if layer is not None:
         fp.layer = layer
     return fp
@@ -104,9 +107,22 @@ def test_load_footprints_sorted_by_value_then_ref():
     assert [r.ref for r in rows] == ["C1", "R2", "R10"]
 
 
-def test_load_footprints_includes_dnp():
+def test_load_footprints_excludes_dnp():
     fp = _make_fp("R1", "10k")
-    fp.attributes = MagicMock()
+    fp.attributes.do_not_populate = True
+    rows = load_footprints(_make_board([fp]))
+    assert len(rows) == 0
+
+
+def test_load_footprints_excludes_no_bom():
+    fp = _make_fp("R1", "10k")
+    fp.attributes.exclude_from_bill_of_materials = True
+    rows = load_footprints(_make_board([fp]))
+    assert len(rows) == 0
+
+
+def test_load_footprints_keeps_dnp_control():
+    fp = _make_fp("RV1", "B100K", {"Control": "Volume"})
     fp.attributes.do_not_populate = True
     rows = load_footprints(_make_board([fp]))
     assert len(rows) == 1

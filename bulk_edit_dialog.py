@@ -1,6 +1,8 @@
 """Bulk Description/Notes editor dialog for footprints on the board."""
 from __future__ import annotations
 
+from typing import Optional
+
 import wx
 import wx.dataview as dv
 
@@ -11,8 +13,9 @@ COL_CHECK = 0
 COL_REF = 1
 COL_VALUE = 2
 COL_TYPE = 3
-COL_DESC = 4
-COL_NOTES = 5
+COL_FP = 4
+COL_DESC = 5
+COL_NOTES = 6
 
 
 class BulkEditDialog(wx.Dialog):
@@ -20,11 +23,13 @@ class BulkEditDialog(wx.Dialog):
         super().__init__(
             parent,
             title="Edit Component Descriptions",
-            size=(900, 560),
+            size=(1060, 640),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
         self.board = board
         self._rows: list[FootprintRow] = load_footprints(board)
+        self._selected_row: Optional[int] = None
+        self._updating = False
         self._build_ui()
         self._populate()
 
@@ -38,14 +43,15 @@ class BulkEditDialog(wx.Dialog):
         info = wx.StaticText(
             panel,
             label=(
-                "Check rows to enable bulk sync — editing any checked cell "
-                "updates all other checked rows in the same column."
+                "Select a row to edit its Description and Notes below. "
+                "Check rows to enable bulk sync — editing a checked row "
+                "updates all other checked rows in the same field."
             ),
         )
-        info.Wrap(860)
+        info.Wrap(1020)
         vbox.Add(info, flag=wx.ALL, border=10)
 
-        # DataViewListCtrl
+        # DataViewListCtrl — Description and Notes are display-only here
         self._dvc = dv.DataViewListCtrl(
             panel,
             style=dv.DV_ROW_LINES | dv.DV_VERT_RULES,
@@ -54,10 +60,11 @@ class BulkEditDialog(wx.Dialog):
         self._dvc.AppendTextColumn("Ref",         width=60,  mode=dv.DATAVIEW_CELL_INERT)
         self._dvc.AppendTextColumn("Value",       width=100, mode=dv.DATAVIEW_CELL_INERT)
         self._dvc.AppendTextColumn("Type",        width=130, mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc.AppendTextColumn("Description", width=220, mode=dv.DATAVIEW_CELL_EDITABLE)
-        self._dvc.AppendTextColumn("Notes",       width=220, mode=dv.DATAVIEW_CELL_EDITABLE)
+        self._dvc.AppendTextColumn("Footprint",   width=160, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc.AppendTextColumn("Description", width=180, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc.AppendTextColumn("Notes",       width=180, mode=dv.DATAVIEW_CELL_INERT)
 
-        self._dvc.Bind(dv.EVT_DATAVIEW_ITEM_VALUE_CHANGED, self._on_cell_changed)
+        self._dvc.Bind(dv.EVT_DATAVIEW_SELECTION_CHANGED, self._on_selection_changed)
         vbox.Add(self._dvc, proportion=1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=10)
 
         # Select All / None buttons
@@ -69,6 +76,28 @@ class BulkEditDialog(wx.Dialog):
         sel_row.Add(btn_all, flag=wx.RIGHT, border=6)
         sel_row.Add(btn_none)
         vbox.Add(sel_row, flag=wx.LEFT | wx.TOP | wx.BOTTOM, border=10)
+
+        # Edit panel
+        edit_box = wx.StaticBox(panel, label="Edit Selected Component")
+        edit_sizer = wx.StaticBoxSizer(edit_box, wx.VERTICAL)
+        edit_grid = wx.FlexGridSizer(cols=2, vgap=6, hgap=8)
+        edit_grid.AddGrowableCol(1, 1)
+
+        edit_grid.Add(wx.StaticText(panel, label="Description:"), flag=wx.ALIGN_CENTER_VERTICAL)
+        self._txt_desc = wx.TextCtrl(panel)
+        edit_grid.Add(self._txt_desc, flag=wx.EXPAND)
+
+        edit_grid.Add(wx.StaticText(panel, label="Notes:"), flag=wx.ALIGN_CENTER_VERTICAL)
+        self._txt_notes = wx.TextCtrl(panel)
+        edit_grid.Add(self._txt_notes, flag=wx.EXPAND)
+
+        edit_sizer.Add(edit_grid, flag=wx.EXPAND | wx.ALL, border=8)
+        vbox.Add(edit_sizer, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
+
+        self._txt_desc.Enable(False)
+        self._txt_notes.Enable(False)
+        self._txt_desc.Bind(wx.EVT_TEXT, self._on_edit_text)
+        self._txt_notes.Bind(wx.EVT_TEXT, self._on_edit_text)
 
         # Apply / Cancel
         btn_sizer = wx.StdDialogButtonSizer()
@@ -86,37 +115,59 @@ class BulkEditDialog(wx.Dialog):
     def _populate(self) -> None:
         self._dvc.DeleteAllItems()
         for row in self._rows:
+            fp_name = row.fp_id.split(":", 1)[-1]
             self._dvc.AppendItem([False, row.ref, row.value, row.fp_type,
-                                   row.description, row.notes])
+                                   fp_name, row.description, row.notes])
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _is_checked(self, item_row: int) -> bool:
         return bool(self._dvc.GetToggleValue(item_row, COL_CHECK))
 
-    def _sync_row_to_model(self, item_row: int) -> None:
-        self._rows[item_row].description = self._dvc.GetTextValue(item_row, COL_DESC)
-        self._rows[item_row].notes = self._dvc.GetTextValue(item_row, COL_NOTES)
-
     # ── Event handlers ────────────────────────────────────────────────────────
 
-    def _on_cell_changed(self, event: dv.DataViewEvent) -> None:
-        item = event.GetItem()
-        col = event.GetColumn()
-        item_row = self._dvc.ItemToRow(item)
-        if item_row < 0:
+    def _on_selection_changed(self, event: dv.DataViewEvent) -> None:
+        item = self._dvc.GetSelection()
+        if not item.IsOk():
+            self._selected_row = None
+            self._txt_desc.Enable(False)
+            self._txt_notes.Enable(False)
             return
+        row_idx = self._dvc.ItemToRow(item)
+        if row_idx < 0:
+            return
+        self._selected_row = row_idx
+        self._updating = True
+        self._txt_desc.SetValue(self._rows[row_idx].description)
+        self._txt_notes.SetValue(self._rows[row_idx].notes)
+        self._txt_desc.Enable(True)
+        self._txt_notes.Enable(True)
+        self._updating = False
 
-        # Sync the edited row to the model
-        self._sync_row_to_model(item_row)
+    def _on_edit_text(self, event: wx.CommandEvent) -> None:
+        if self._updating or self._selected_row is None:
+            return
+        row_idx = self._selected_row
+        is_desc = event.GetEventObject() is self._txt_desc
+        col = COL_DESC if is_desc else COL_NOTES
+        new_value = self._txt_desc.GetValue() if is_desc else self._txt_notes.GetValue()
 
-        # Bulk-sync editable columns only if the changed row is checked
-        if col in (COL_DESC, COL_NOTES) and self._is_checked(item_row):
-            new_value = self._dvc.GetTextValue(item_row, col)
+        # Update model and DVC for the edited row
+        if is_desc:
+            self._rows[row_idx].description = new_value
+        else:
+            self._rows[row_idx].notes = new_value
+        self._dvc.SetTextValue(new_value, row_idx, col)
+
+        # Bulk-sync to all other checked rows if this row is also checked
+        if self._is_checked(row_idx):
             for i in range(self._dvc.GetItemCount()):
-                if i != item_row and self._is_checked(i):
+                if i != row_idx and self._is_checked(i):
+                    if is_desc:
+                        self._rows[i].description = new_value
+                    else:
+                        self._rows[i].notes = new_value
                     self._dvc.SetTextValue(new_value, i, col)
-                    self._sync_row_to_model(i)
 
     def _on_select_all(self, event) -> None:
         for i in range(self._dvc.GetItemCount()):
@@ -127,12 +178,8 @@ class BulkEditDialog(wx.Dialog):
             self._dvc.SetToggleValue(False, i, COL_CHECK)
 
     def _on_apply(self, event) -> None:
-        # Sync all rows from the DVC to the model before committing
-        for i in range(self._dvc.GetItemCount()):
-            self._sync_row_to_model(i)
-
         def log(msg):
-            pass  # could wire to a status bar later
+            pass
 
         try:
             n = commit_edits(self.board, self._rows, log=log)

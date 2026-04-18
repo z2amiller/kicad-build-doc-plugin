@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from footprint_utils import extract_controls, friendly_footprint_type, get_field, ref_sort_key
+from footprint_utils import Controls, extract_controls, friendly_footprint_type, get_field, ref_sort_key
 
 
 def test_ref_sort_key_numeric_order():
@@ -92,6 +92,7 @@ def _make_fp_with_control(ref, value, control, fp_id="Lib:Part"):
     field.name = "Control"
     field.text.value = control
     fp.texts_and_fields = [field]
+    fp.pads = [object(), object(), object()]  # default: multi-pad, not filtered
     return fp
 
 
@@ -103,7 +104,7 @@ def _make_board_ec(fps):
 
 def test_extract_controls_empty_board():
     result = extract_controls(_make_board_ec([]), set())
-    assert result == {"external": [], "internal": []}
+    assert result == Controls(external=[], internal=[])
 
 
 def test_extract_controls_no_control_field():
@@ -111,7 +112,7 @@ def test_extract_controls_no_control_field():
     fp.reference_field.text.value = "R1"
     fp.texts_and_fields = []
     result = extract_controls(_make_board_ec([fp]), set())
-    assert result == {"external": [], "internal": []}
+    assert result == Controls(external=[], internal=[])
 
 
 def test_extract_controls_external_vs_internal():
@@ -119,10 +120,10 @@ def test_extract_controls_external_vs_internal():
     int_fp = _make_fp_with_control("RV2", "B10K",  "Tone",   "Lib:Trim")
     external_ids = {"Panel:Alpha9mm"}
     result = extract_controls(_make_board_ec([ext_fp, int_fp]), external_ids)
-    assert len(result["external"]) == 1
-    assert result["external"][0]["label"] == "Volume"
-    assert len(result["internal"]) == 1
-    assert result["internal"][0]["label"] == "Tone"
+    assert len(result.external) == 1
+    assert result.external[0].label == "Volume"
+    assert len(result.internal) == 1
+    assert result.internal[0].label == "Tone"
 
 
 def test_extract_controls_deduplicates_labels():
@@ -131,7 +132,7 @@ def test_extract_controls_deduplicates_labels():
         _make_fp_with_control("RV2", "B100K", "Volume"),  # duplicate label
     ]
     result = extract_controls(_make_board_ec(fps), set())
-    assert len(result["internal"]) == 1
+    assert len(result.internal) == 1
 
 
 def test_extract_controls_excludes_leds_and_diodes():
@@ -140,7 +141,27 @@ def test_extract_controls_excludes_leds_and_diodes():
         _make_fp_with_control("LED1", "Red",    "Indicator"),
     ]
     result = extract_controls(_make_board_ec(fps), set())
-    assert result == {"external": [], "internal": []}
+    assert result == Controls(external=[], internal=[])
+
+
+def test_extract_controls_excludes_test_points_from_internal():
+    fp = _make_fp_with_control("TP1", "TestPoint", "Signal")
+    result = extract_controls(_make_board_ec([fp]), set())
+    assert result == Controls(external=[], internal=[])
+
+
+def test_extract_controls_excludes_single_pad_from_internal():
+    fp = _make_fp_with_control("RV1", "B100K", "Volume")
+    fp.pads = []  # zero pads → single-pad filter triggers
+    result = extract_controls(_make_board_ec([fp]), set())
+    assert result == Controls(external=[], internal=[])
+
+
+def test_extract_controls_keeps_multi_pad_internal():
+    fp = _make_fp_with_control("RV1", "B100K", "Volume")
+    fp.pads = [object(), object(), object()]  # 3 pads → kept
+    result = extract_controls(_make_board_ec([fp]), set())
+    assert len(result.internal) == 1
 
 
 def test_extract_controls_sorted_by_ref():
@@ -150,5 +171,5 @@ def test_extract_controls_sorted_by_ref():
         _make_fp_with_control("RV1",  "B100K", "Volume"),
     ]
     result = extract_controls(_make_board_ec(fps), set())
-    labels = [c["label"] for c in result["internal"]]
+    labels = [c.label for c in result.internal]
     assert labels == ["Volume", "Delay", "Reverb"]

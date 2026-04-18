@@ -9,12 +9,26 @@ Produces a PedalPCB-style build document with:
 
 import os
 import tempfile
+from dataclasses import dataclass
 from typing import Callable, Optional
 
 from pypdf import PdfReader
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import PageBreak, SimpleDocTemplate
+
+@dataclass
+class GeneratorParams:
+    project_name: str
+    output_path: str
+    author: str = ""
+    revision: str = "1.0"
+    include_cover: bool = False
+    include_bom: bool = False
+    include_enclosure: bool = False
+    include_sch: bool = False
+    sch_path: str = ""
+
 
 from board_image import apply_board_pdf_to_cover, export_board_pdf
 from bom_pages import build_bom_story
@@ -30,15 +44,15 @@ class BuildDocGenerator:
     def __init__(
         self,
         board,
-        params: dict,
+        params: GeneratorParams,
         log: Optional[Callable] = None,
     ):
         self.board = board
         self.params = params
-        self.project_name = params["project_name"]
-        self.author = params.get("author", "")
-        self.revision = params.get("revision", "1.0")
-        self.output_path = params["output_path"]
+        self.project_name = params.project_name
+        self.author = params.author
+        self.revision = params.revision
+        self.output_path = params.output_path
         self.tmpdir = tempfile.mkdtemp(prefix="builddoc_")
         self._log = log or (lambda msg: None)
         self.total_pages = 0
@@ -47,13 +61,13 @@ class BuildDocGenerator:
     def generate(self) -> None:
         body_pdf = os.path.join(self.tmpdir, "body.pdf")
         enc_pdf = os.path.join(self.tmpdir, "enclosure.pdf")
-        has_body = self.params.get("include_cover") or self.params.get("include_bom")
-        has_enc = self.params.get("include_enclosure")
-        has_sch = self.params.get("include_sch")
+        has_body = self.params.include_cover or self.params.include_bom
+        has_enc = self.params.include_enclosure
+        has_sch = self.params.include_sch
 
         # ── Export board image PDF (independent of page count) ────────────────
         board_pdf_path = None
-        if self.params.get("include_cover"):
+        if self.params.include_cover:
             self._log("Exporting board image…")
             try:
                 board_pdf_path = export_board_pdf(self.board, self.tmpdir, self._log)
@@ -146,7 +160,7 @@ class BuildDocGenerator:
         story = []
         board_slot = None
 
-        if self.params.get("include_cover"):
+        if self.params.include_cover:
             cover_story, board_slot = build_cover_story(
                 board=self.board,
                 project_name=self.project_name,
@@ -158,7 +172,7 @@ class BuildDocGenerator:
             )
             story += cover_story
 
-        if self.params.get("include_bom"):
+        if self.params.include_bom:
             if story:
                 story.append(PageBreak())
             story += build_bom_story(

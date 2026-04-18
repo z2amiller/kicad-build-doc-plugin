@@ -3,7 +3,41 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Dict, List, Tuple
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional, Tuple
+
+
+@dataclass
+class ControlEntry:
+    ref: str
+    label: str
+    value: str
+
+
+@dataclass
+class Controls:
+    external: List[ControlEntry]
+    internal: List[ControlEntry]
+
+
+def safe_get_footprints(board, log: Optional[Callable] = None) -> List:
+    """Return board.get_footprints() as a list, or [] if the IPC API raises."""
+    try:
+        return list(board.get_footprints())
+    except Exception as exc:
+        if log:
+            log(f"  Warning: could not retrieve footprints: {exc}")
+        return []
+
+
+def safe_get_shapes(board, log: Optional[Callable] = None) -> List:
+    """Return board.get_shapes() as a list, or [] if the IPC API raises."""
+    try:
+        return list(board.get_shapes())
+    except Exception as exc:
+        if log:
+            log(f"  Warning: could not retrieve board shapes: {exc}")
+        return []
 
 
 def get_board_path(board) -> str:
@@ -81,36 +115,48 @@ def friendly_footprint_type(ref: str, fp_name: str) -> str:
     return mapping.get(p, fp_name or "Component")
 
 
-def extract_controls(board, external_ids: set) -> Dict[str, List]:
-    """
-    Return {'external': [...], 'internal': [...]} where each entry is
-    {'ref', 'label', 'value'}.  External = footprint in external_ids;
-    internal = everything else with a Control field.
-    LEDs and diodes (D*, LED*) are excluded entirely.
-    """
-    exclude_prefix = re.compile(r"^(D|LED)\d*$", re.IGNORECASE)
+_EXCLUDE_ALL_RE = re.compile(r"^(D|LED)\d*$", re.IGNORECASE)
+_EXCLUDE_INTERNAL_RE = re.compile(r"^(D|LED|TP)\d*$", re.IGNORECASE)
 
-    external: List[dict] = []
-    internal: List[dict] = []
+
+def _is_single_pad(fp) -> bool:
+    try:
+        return len(fp.pads) <= 1
+    except Exception:
+        return False
+
+
+def extract_controls(board, external_ids: set) -> Controls:
+    """Return Controls with external and internal ControlEntry lists.
+
+    External = footprint ID in external_ids; internal = everything else
+    with a Control field.
+
+    Global exclusions (external and internal): D*, LED* (diodes/LEDs).
+    Internal-only additional exclusions: TP* (test points), single-pad
+    footprints, and any footprint whose ref looks like an LED indicator.
+    """
+    external: List[ControlEntry] = []
+    internal: List[ControlEntry] = []
     seen: set = set()
 
-    for fp in board.get_footprints():
+    for fp in safe_get_footprints(board):
         ref = fp.reference_field.text.value
         if ref.startswith("~") or ref in ("REF**", ""):
             continue
-        if exclude_prefix.match(ref):
+        if _EXCLUDE_ALL_RE.match(ref):
             continue
         label = get_field(fp, "Control")
         if not label or label in seen:
             continue
         seen.add(label)
 
-        entry = {"ref": ref, "label": label, "value": fp.value_field.text.value}
+        entry = ControlEntry(ref=ref, label=label, value=fp.value_field.text.value)
         if get_fp_id(fp) in external_ids:
             external.append(entry)
-        else:
+        elif not _EXCLUDE_INTERNAL_RE.match(ref) and not _is_single_pad(fp):
             internal.append(entry)
 
-    external.sort(key=lambda c: ref_sort_key(c["ref"]))
-    internal.sort(key=lambda c: ref_sort_key(c["ref"]))
-    return {"external": external, "internal": internal}
+    external.sort(key=lambda c: ref_sort_key(c.ref))
+    internal.sort(key=lambda c: ref_sort_key(c.ref))
+    return Controls(external=external, internal=internal)

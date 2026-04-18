@@ -7,7 +7,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 
-from footprint_utils import friendly_footprint_type, get_field, ref_sort_key
+from footprint_utils import friendly_footprint_type, get_field, ref_sort_key, safe_get_footprints
 from pdf_utils import (
     COL_ACCENT,
     COL_HEADER_BG,
@@ -125,7 +125,7 @@ def collect_bom(board) -> List[Dict]:
     Controls sort after regular parts, separated by a thin rule row.
     """
     rows: List[Dict] = []
-    for fp in board.get_footprints():
+    for fp in safe_get_footprints(board):
         ref = fp.reference_field.text.value
         if ref.startswith("~") or ref in ("REF**", ""):
             continue
@@ -145,9 +145,7 @@ def collect_bom(board) -> List[Dict]:
             fp_name = fp.definition.id.name
             desc = friendly_footprint_type(ref, fp_name)
 
-        notes = get_field(fp, "Datasheet")
-        if notes == "~":
-            notes = ""
+        notes = get_field(fp, "Notes")
 
         rows.append(
             {

@@ -1,14 +1,46 @@
 """Parser for external_footprints.txt panel configuration file."""
+from __future__ import annotations
 
 import os
-from typing import Callable, Dict, Optional
+from dataclasses import dataclass, field
+from typing import Callable, Dict, List, Optional
+
+
+@dataclass
+class EnclosureConfig:
+    width: float
+    height: float
+    depth: float = 35.0
+
+
+@dataclass
+class FootprintHoleConfig:
+    hole_dia: float
+    offset_x: float
+    offset_y: float
+    label: Optional[str] = None
+
+
+@dataclass
+class FixedHole:
+    label: str
+    dia: float
+    x: float
+    y: float
+
+
+@dataclass
+class PanelConfig:
+    enclosure: EnclosureConfig
+    footprints: Dict[str, FootprintHoleConfig]
+    fixed_holes: List[FixedHole]
 
 
 def load_panel_config(
     board_path: str,
     plugin_dir: str,
     log: Optional[Callable] = None,
-) -> Dict:
+) -> PanelConfig:
     """Parse the panel config from external_footprints.txt.
 
     Searches the project directory first, then the plugin directory, so that
@@ -20,11 +52,10 @@ def load_panel_config(
       Lib:Name   hole_dia  offset_x   offset_y  [label]
     """
     _log = log or (lambda msg: None)
-    result: Dict = {
-        "footprints": {},
-        "fixed_holes": [],
-        "enclosure": {"width": 62, "height": 117, "depth": 35.0},
-    }
+    enclosure = EnclosureConfig(width=62, height=117, depth=35.0)
+    footprints: Dict[str, FootprintHoleConfig] = {}
+    fixed_holes: List[FixedHole] = []
+
     project_dir = os.path.dirname(board_path)
     for directory in [project_dir, plugin_dir]:
         candidate = os.path.join(directory, "external_footprints.txt")
@@ -38,36 +69,35 @@ def load_panel_config(
                 parts = line.split()
                 kw = parts[0].upper()
                 if kw == "ENCLOSURE" and len(parts) >= 3:
-                    result["enclosure"] = {
-                        "width": float(parts[1]),
-                        "height": float(parts[2]),
-                        "depth": float(parts[3]) if len(parts) >= 4 else 35.0,
-                    }
-                elif kw == "FIXED" and len(parts) >= 5:
-                    result["fixed_holes"].append(
-                        {
-                            "label": parts[1],
-                            "dia": float(parts[2]),
-                            "x": float(parts[3]),
-                            "y": float(parts[4]),
-                        }
+                    enclosure = EnclosureConfig(
+                        width=float(parts[1]),
+                        height=float(parts[2]),
+                        depth=float(parts[3]) if len(parts) >= 4 else 35.0,
                     )
+                elif kw == "FIXED" and len(parts) >= 5:
+                    fixed_holes.append(FixedHole(
+                        label=parts[1],
+                        dia=float(parts[2]),
+                        x=float(parts[3]),
+                        y=float(parts[4]),
+                    ))
                 elif ":" in parts[0]:
                     fp_id = parts[0]
                     if len(parts) >= 4:
-                        result["footprints"][fp_id] = {
-                            "hole_dia": float(parts[1]),
-                            "offset_x": float(parts[2]),
-                            "offset_y": float(parts[3]),
-                            "label": parts[4] if len(parts) >= 5 else None,
-                        }
+                        footprints[fp_id] = FootprintHoleConfig(
+                            hole_dia=float(parts[1]),
+                            offset_x=float(parts[2]),
+                            offset_y=float(parts[3]),
+                            label=parts[4] if len(parts) >= 5 else None,
+                        )
                     else:
-                        result["footprints"][fp_id] = {
-                            "hole_dia": 8.0,
-                            "offset_x": 0.0,
-                            "offset_y": 0.0,
-                            "label": None,
-                        }
+                        footprints[fp_id] = FootprintHoleConfig(
+                            hole_dia=8.0,
+                            offset_x=0.0,
+                            offset_y=0.0,
+                            label=None,
+                        )
         _log(f"  Loaded panel config from {candidate}")
         break
-    return result
+
+    return PanelConfig(enclosure=enclosure, footprints=footprints, fixed_holes=fixed_holes)
