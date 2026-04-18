@@ -4,6 +4,8 @@ Build Document Generator - Dialog UI
 import wx
 import os
 
+from footprint_utils import get_board_path
+
 
 class BuildDocDialog(wx.Dialog):
     def __init__(self, parent, board):
@@ -17,7 +19,7 @@ class BuildDocDialog(wx.Dialog):
 
     def _build_ui(self):
         board = self.board
-        board_path = board.name
+        board_path = get_board_path(board)
         board_name = os.path.splitext(os.path.basename(board_path))[0] if board_path else "Untitled"
 
         panel = wx.Panel(self)
@@ -62,7 +64,7 @@ class BuildDocDialog(wx.Dialog):
         # ── Schematic path (optional override) ───────────────────
         sch_row = wx.BoxSizer(wx.HORIZONTAL)
         sch_row.Add(wx.StaticText(panel, label="Schematic (.kicad_sch):"), flag=wx.ALIGN_CENTER_VERTICAL)
-        board_file = board.name
+        board_file = get_board_path(board)
         board_dir  = os.path.dirname(board_file) if board_file else ""
         # Prefer the schematic whose basename matches the board (the project root)
         default_sch = os.path.splitext(board_file)[0] + ".kicad_sch" if board_file else ""

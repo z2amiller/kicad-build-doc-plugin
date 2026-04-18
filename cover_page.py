@@ -11,7 +11,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 
-from footprint_utils import extract_controls
+from footprint_utils import extract_controls, get_board_path
 from panel_config import load_panel_config
 from pdf_utils import COL_ACCENT, COL_HEADER_BG, MARGIN, PAGE_H, PAGE_W, hr
 
@@ -99,7 +99,7 @@ def build_cover_story(
         story.append(Spacer(1, 0.15 * inch))
 
     _log("Extracting controls…")
-    config = load_panel_config(board.name, plugin_dir, _log)
+    config = load_panel_config(get_board_path(board), plugin_dir, _log)
     controls = extract_controls(board, set(config["footprints"].keys()))
     external = controls["external"]
     internal = controls["internal"]
@@ -154,7 +154,7 @@ def export_board_image(board, tmpdir: str, log: Optional[Callable] = None) -> st
     """Export Edge.Cuts + silkscreen layers as PNG via kicad-cli."""
     _log = log or (lambda msg: None)
 
-    board_path = board.name
+    board_path = get_board_path(board)
     if not board_path or not os.path.exists(board_path):
         raise RuntimeError(f"Board file not found at '{board_path}' — save the board first.")
 

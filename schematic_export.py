@@ -7,6 +7,8 @@ from typing import Callable, Optional
 
 from reportlab.pdfgen import canvas as rl_canvas
 
+from footprint_utils import get_board_path
+
 
 def export_schematic_pdf(
     board,
@@ -21,7 +23,7 @@ def export_schematic_pdf(
     sub-sheets automatically.
     """
     _log = log or (lambda msg: None)
-    board_path = board.name
+    board_path = get_board_path(board)
     canonical = os.path.splitext(board_path)[0] + ".kicad_sch"
     override = params.get("sch_path", "").strip()
     root_sch = canonical if os.path.exists(canonical) else (override or canonical)

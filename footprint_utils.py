@@ -1,8 +1,30 @@
 """Helpers for working with kipy footprint objects."""
 from __future__ import annotations
 
+import os
 import re
 from typing import Dict, List, Tuple
+
+
+def get_board_path(board) -> str:
+    """Return the full absolute path to the board .kicad_pcb file.
+
+    kipy's board.name returns DocumentSpecifier.board_filename which may be
+    just a bare filename. If it isn't already an absolute path on disk,
+    resolve it via the project directory from board.get_project().path.
+    """
+    name = board.name
+    if name and os.path.isabs(name) and os.path.exists(name):
+        return name
+    try:
+        project_dir = board.get_project().path
+        if project_dir:
+            candidate = os.path.join(project_dir, os.path.basename(name))
+            if os.path.exists(candidate):
+                return candidate
+    except Exception:
+        pass
+    return name
 
 
 def get_field(fp, name: str) -> str:

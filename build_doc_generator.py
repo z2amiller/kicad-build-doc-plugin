@@ -17,6 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import PageBreak, SimpleDocTemplate
 
 from bom_pages import build_bom_story
+from footprint_utils import get_board_path
 from cover_page import build_cover_story
 from enclosure_template import generate_enclosure_pdf
 from panel_config import load_panel_config
@@ -93,7 +94,7 @@ class BuildDocGenerator:
 
         if has_enc:
             self._log("Generating enclosure drilling template…")
-            config = load_panel_config(self.board.name, self._plugin_dir, self._log)
+            config = load_panel_config(get_board_path(self.board), self._plugin_dir, self._log)
             generate_enclosure_pdf(
                 board=self.board,
                 config=config,
