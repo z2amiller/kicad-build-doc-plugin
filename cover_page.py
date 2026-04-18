@@ -166,7 +166,7 @@ def export_board_pdf(board, tmpdir: str, log: Optional[Callable] = None) -> str:
             cli, "pcb", "export", "pdf",
             "--layers", layers,
             "--scale", "0",
-            "--bg-color", "white",
+            "--black-and-white",
             "--mode-single",
             "--output", out_pdf,
             board_path,

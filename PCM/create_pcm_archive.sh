@@ -35,8 +35,9 @@ for file in "$REPO_ROOT"/*.py "$REPO_ROOT"/*.txt "$REPO_ROOT"/plugin.json \
     cp -f "$file" "$PLUGINS_DIR/"
 done
 
-echo "Copy icon to resources/"
+echo "Copy icon to resources/ (PCM Plugin Manager) and plugins/ (IPC toolbar)"
 cp -f "$REPO_ROOT/icon.png" "$RESOURCES_DIR/"
+cp -f "$REPO_ROOT/icon.png" "$PLUGINS_DIR/"
 
 echo "Write version to plugins/VERSION"
 echo "$VERSION" > "$PLUGINS_DIR/VERSION"
