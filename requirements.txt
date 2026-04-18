@@ -1,6 +1,6 @@
 # Installed automatically by KiCad into a managed venv when the IPC plugin is installed.
 kicad-python>=0.1.0
-reportlab>=4.0
+reportlab>=4.4.3
 pypdf>=3.0
 svglib>=1.5
 lxml>=4.9
