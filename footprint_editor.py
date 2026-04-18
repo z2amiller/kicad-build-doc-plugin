@@ -106,31 +106,24 @@ def load_footprints(board) -> List[FootprintRow]:
 
 
 def _get_or_create_field(fp, field_name: str) -> Any:
-    """Return the existing field object for field_name, or create it if absent.
+    """Return the existing field object for field_name, or create and add it.
 
-    When creating, copies position and visibility from the Description field
-    as a reasonable default placement.
+    New fields are added to fp.definition.items (the custom-fields list) with
+    visible=False so they don't clutter the board canvas.
     """
-    # Try to find existing field (case-insensitive)
     name_lower = field_name.lower()
     for item in fp.texts_and_fields:
         item_name = getattr(item, "name", None)
         if item_name is not None and item_name.lower() == name_lower:
             return item
 
-    # Field doesn't exist — create via kipy's add_field if available,
-    # otherwise fall back to direct attribute setting on the footprint.
-    # kipy exposes fp.add_field(name, value) on some versions.
-    try:
-        return fp.add_field(field_name, "")
-    except AttributeError:
-        pass
-
-    # Last resort: raise so callers know creation failed.
-    raise RuntimeError(
-        f"Cannot create field '{field_name}' on footprint {fp.reference_field.text.value} "
-        f"— kipy does not expose add_field() in this version."
-    )
+    # Field absent — create a new kipy Field and attach it to the definition.
+    from kipy.board_types import Field as KipyField
+    new_field = KipyField()
+    new_field.name = field_name
+    new_field.visible = False
+    fp.definition.add_item(new_field)
+    return new_field
 
 
 def commit_edits(
@@ -163,12 +156,8 @@ def commit_edits(
                     item.text.value = row.description
                     break
             else:
-                # Description field absent — try to create it
-                try:
-                    new_field = _get_or_create_field(fp, "Description")
-                    new_field.text.value = row.description
-                except RuntimeError as exc:
-                    _log(f"  Warning: {exc}")
+                new_field = _get_or_create_field(fp, "Description")
+                new_field.text.value = row.description
 
         if row.notes_changed():
             for item in fp.texts_and_fields:
@@ -177,11 +166,8 @@ def commit_edits(
                     item.text.value = row.notes
                     break
             else:
-                try:
-                    new_field = _get_or_create_field(fp, "Notes")
-                    new_field.text.value = row.notes
-                except RuntimeError as exc:
-                    _log(f"  Warning: {exc}")
+                new_field = _get_or_create_field(fp, "Notes")
+                new_field.text.value = row.notes
 
         fps_to_update.append(fp)
         _log(f"  Updated {row.ref}: description={row.description!r}, notes={row.notes!r}")
