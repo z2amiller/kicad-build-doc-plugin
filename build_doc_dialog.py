@@ -63,6 +63,11 @@ class BuildDocDialog(wx.Dialog):
         bsizer.Add(self.chk_sch,   flag=wx.ALL, border=4)
         vbox.Add(bsizer, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
 
+        # ── Bulk description editor ───────────────────────────────
+        btn_edit = wx.Button(panel, label="Edit Component Descriptions…")
+        btn_edit.Bind(wx.EVT_BUTTON, self.on_edit_descriptions)
+        vbox.Add(btn_edit, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
+
         # ── Schematic path (optional override) ───────────────────
         sch_row = wx.BoxSizer(wx.HORIZONTAL)
         sch_row.Add(wx.StaticText(panel, label="Schematic (.kicad_sch):"), flag=wx.ALIGN_CENTER_VERTICAL)
@@ -116,6 +121,12 @@ class BuildDocDialog(wx.Dialog):
 
         panel.SetSizer(vbox)
         self.Layout()
+
+    def on_edit_descriptions(self, event):
+        from bulk_edit_dialog import BulkEditDialog
+        dlg = BulkEditDialog(self, self.board)
+        dlg.ShowModal()
+        dlg.Destroy()
 
     def on_browse_sch(self, event):
         dlg = wx.FileDialog(self, "Select Schematic", wildcard="KiCad Schematic (*.kicad_sch)|*.kicad_sch",

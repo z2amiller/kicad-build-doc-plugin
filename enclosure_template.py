@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from typing import Callable, Dict, List, Optional
 
+from kipy.board import BoardLayer
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas as rl_canvas
@@ -18,7 +19,6 @@ NM_PER_MM = 1_000_000  # kipy uses nanometres
 
 def _board_bbox(board):
     """Return merged bounding box of all Edge.Cuts shapes as a kipy Box2, or None."""
-    from kipy.board import BoardLayer
     edge_shapes = [s for s in board.get_shapes() if s.layer == BoardLayer.BL_Edge_Cuts]
     if not edge_shapes:
         return None
@@ -40,6 +40,263 @@ def board_size_mm(board) -> Optional[tuple]:
     except Exception:
         pass
     return None
+
+
+class _EnclosureRenderer:
+    """Renders a 1:1 enclosure drilling template onto a ReportLab canvas."""
+
+    def __init__(
+        self,
+        c,
+        ox: float,
+        oy: float,
+        fl: float,
+        fb: float,
+        fw: float,
+        fh: float,
+        td: float,
+        board_cx: float,
+        top_pcb_y: float,
+    ) -> None:
+        self.c = c
+        self.ox = ox
+        self.oy = oy
+        self.fl = fl
+        self.fb = fb
+        self.fw = fw
+        self.fh = fh
+        self.td = td
+        self.board_cx = board_cx
+        self.top_pcb_y = top_pcb_y
+
+    # ── Coordinate helpers ────────────────────────────────────────────────────
+
+    def to_pdf(self, ex: float, ey: float):
+        """Enclosure mm → PDF points."""
+        return self.ox + ex * MM, self.oy + ey * MM
+
+    def fp_to_enc(
+        self,
+        pcb_x: float,
+        pcb_y: float,
+        off_x: float = 0.0,
+        off_y: float = 0.0,
+    ):
+        """PCB absolute mm → enclosure mm.
+
+        X is mirrored around the board bounding-box centre (panel viewed from
+        outside = PCB front mirrored).  Y is anchored so the topmost external
+        control hole lands at TOP_ROW_MM above the enclosure centre.
+        """
+        return (
+            -(pcb_x - self.board_cx) + off_x,
+            (TOP_ROW_MM + self.top_pcb_y - pcb_y) + off_y,
+        )
+
+    # ── Drawing primitives ────────────────────────────────────────────────────
+
+    def draw_hole(self, ex: float, ey: float, dia: float, label: str) -> None:
+        """Draw a circle + crosshairs + labels at enclosure position (ex, ey)."""
+        c = self.c
+        hx, hy = self.to_pdf(ex, ey)
+        r = (dia / 2) * MM
+        cross = min(r + 1.5 * MM, 3.5 * MM)
+        c.setStrokeColorRGB(0, 0, 0)
+        c.setLineWidth(0.4)
+        c.circle(hx, hy, r, stroke=1, fill=0)
+        c.setLineWidth(0.25)
+        c.line(hx - cross, hy, hx + cross, hy)
+        c.line(hx, hy - cross, hx, hy + cross)
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica", 5)
+        c.drawCentredString(hx, hy + r + 1.5 * MM, label)
+        c.setFont("Helvetica", 4)
+        c.drawCentredString(hx, hy - r - 3.0 * MM, f"\u00f8{dia:.1f} mm")
+
+    # ── Structural drawing ────────────────────────────────────────────────────
+
+    def draw_outline(self) -> None:
+        """Draw the rounded-rect cross: face + 4 tabs."""
+        c = self.c
+        R = 3.0 * MM
+        fl, fb, fw, fh, td = self.fl, self.fb, self.fw, self.fh, self.td
+        c.setStrokeColorRGB(0, 0, 0)
+        c.setLineWidth(0.75)
+        c.roundRect(fl, fb, fw, fh, R, stroke=1, fill=0)  # face
+        c.setLineWidth(0.5)
+        c.roundRect(fl, fb + fh, fw, td, R, stroke=1, fill=0)  # top tab
+        c.roundRect(fl, fb - td, fw, td, R, stroke=1, fill=0)  # bottom tab
+        c.roundRect(fl - td, fb, td, fh, R, stroke=1, fill=0)  # left tab
+        c.roundRect(fl + fw, fb, td, fh, R, stroke=1, fill=0)  # right tab
+
+    def draw_fold_lines(self) -> None:
+        """Draw dashed lines at face boundary."""
+        c = self.c
+        fl, fb, fw, fh = self.fl, self.fb, self.fw, self.fh
+        c.saveState()
+        c.setDash([3, 3])
+        c.setStrokeColorRGB(0.45, 0.45, 0.45)
+        c.setLineWidth(0.4)
+        c.line(fl, fb + fh, fl + fw, fb + fh)
+        c.line(fl, fb, fl + fw, fb)
+        c.line(fl, fb, fl, fb + fh)
+        c.line(fl + fw, fb, fl + fw, fb + fh)
+        c.restoreState()
+
+    def draw_centre_lines(self) -> None:
+        """Draw dashed centre cross extending through tabs."""
+        c = self.c
+        fl, fb, fw, fh, td = self.fl, self.fb, self.fw, self.fh, self.td
+        ox, oy = self.ox, self.oy
+        ext = 5 * MM
+        c.saveState()
+        c.setDash([4, 3])
+        c.setStrokeColorRGB(0.65, 0.65, 0.65)
+        c.setLineWidth(0.3)
+        c.line(fl - td - ext, oy, fl + fw + td + ext, oy)
+        c.line(ox, fb - td - ext, ox, fb + fh + td + ext)
+        c.restoreState()
+
+    # ── Hole groups ───────────────────────────────────────────────────────────
+
+    def draw_footprint_holes(self, board, fp_config: Dict, log) -> None:
+        """Iterate fp_config footprints and draw their holes."""
+        for fp in board.get_footprints():
+            fp_id = get_fp_id(fp)
+            if fp_id not in fp_config:
+                continue
+            cfg = fp_config[fp_id]
+            rx, ry = self.fp_to_enc(
+                fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM
+            )
+            ex = rx + cfg["offset_x"]
+            ey = ry + cfg["offset_y"]
+            label = cfg["label"] or get_field(fp, "Control") or fp.reference_field.text.value
+            self.draw_hole(ex, ey, cfg["hole_dia"], label)
+            log(
+                f"    {label}: fp-origin ({rx:.2f}, {ry:.2f})"
+                f"  offset ({cfg['offset_x']:+.1f}, {cfg['offset_y']:+.1f})"
+                f"  hole ({ex:.2f}, {ey:.2f}) mm"
+            )
+
+    def draw_led_holes(self, board, fp_config: Dict, log) -> None:
+        """Draw holes for back-side LEDs/diodes."""
+        led_re = re.compile(r"^(D|LED)\d", re.IGNORECASE)
+        for fp in board.get_footprints():
+            ref = fp.reference_field.text.value
+            if not led_re.match(ref):
+                continue
+            if fp.layer != BoardLayer.BL_B_Cu:  # not flipped to back side
+                continue
+            fp_id = get_fp_id(fp)
+            cfg = fp_config.get(
+                fp_id,
+                {"hole_dia": 3.2, "offset_x": 0.0, "offset_y": 0.0, "label": "LED"},
+            )
+            ex, ey = self.fp_to_enc(
+                fp.position.x / NM_PER_MM,
+                fp.position.y / NM_PER_MM,
+                cfg["offset_x"],
+                cfg["offset_y"],
+            )
+            label = cfg.get("label") or "LED"
+            self.draw_hole(ex, ey, cfg["hole_dia"], label)
+            log(
+                f"    LED (back-side {ref}): enc ({ex:.1f}, {ey:.1f}) mm"
+                f"  \u00f8{cfg['hole_dia']} mm"
+            )
+
+    def draw_fixed_holes(self, fixed_holes: List, log) -> None:
+        """Draw fixed hole list."""
+        for hole in fixed_holes:
+            self.draw_hole(hole["x"], hole["y"], hole["dia"], hole["label"])
+            log(
+                f"    {hole['label']} (fixed): ({hole['x']:.1f}, {hole['y']:.1f}) mm"
+                f"  \u00f8{hole['dia']} mm"
+            )
+
+    # ── Annotation ────────────────────────────────────────────────────────────
+
+    def draw_title_block(
+        self, project_name: str, enc_w: float, enc_h: float
+    ) -> None:
+        """Draw title + scale notice + 'PRINT AT 100%'."""
+        c = self.c
+        ox = self.ox
+        fb, fh, td = self.fb, self.fh, self.td
+
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica-Bold", 11)
+        title_y = fb + fh + td + 10 * MM
+        c.drawCentredString(
+            ox, title_y, f"{project_name} \u2014 Enclosure Drilling Template"
+        )
+        c.setFont("Helvetica", 8)
+        c.setFillColorRGB(0.35, 0.35, 0.35)
+        c.drawCentredString(
+            ox, title_y - 5 * MM, f"{enc_w:.0f} \u00d7 {enc_h:.0f} mm enclosure"
+        )
+
+        notice_y = fb - td - 7 * MM
+        c.setFont("Helvetica-Bold", 9)
+        c.setFillColorRGB(0.78, 0, 0)
+        c.drawCentredString(ox, notice_y, "PRINT AT 100% \u2014 DO NOT SCALE")
+        c.setFont("Helvetica", 6.5)
+        c.setFillColorRGB(0.45, 0.45, 0.45)
+        c.drawCentredString(
+            ox,
+            notice_y - 4.5 * MM,
+            "macOS: Print \u2192 Scale: 100%  \u2022  "
+            "Verify scale bar below measures exactly 25 mm before drilling",
+        )
+
+    def draw_scale_bar(self) -> None:
+        """Draw a 25 mm reference bar below the notice."""
+        c = self.c
+        ox = self.ox
+        fb, td = self.fb, self.td
+
+        notice_y = fb - td - 7 * MM
+        bar_len = 25
+        by0 = notice_y - 8 * MM
+        bx0 = ox - bar_len / 2 * MM
+        bx1 = bx0 + bar_len * MM
+        tick = 1.5 * MM
+        c.setStrokeColorRGB(0, 0, 0)
+        c.setFillColorRGB(0, 0, 0)
+        c.setLineWidth(1.0)
+        c.line(bx0, by0, bx1, by0)
+        c.setLineWidth(0.5)
+        c.line(bx0, by0 - tick, bx0, by0 + tick)
+        c.line(bx1, by0 - tick, bx1, by0 + tick)
+        c.setFont("Helvetica", 6)
+        c.drawCentredString((bx0 + bx1) / 2, by0 - 4 * MM, f"{bar_len} mm")
+
+    def draw_footer(
+        self,
+        project_name: str,
+        author: str,
+        page_num: int,
+        total_pages: int,
+    ) -> None:
+        """Draw footer line + text."""
+        c = self.c
+        pw, _ph = letter
+        footer_left = project_name
+        if author:
+            footer_left += f"  \u00b7  {author}"
+        page_str = (
+            f"Page {page_num} of {total_pages}"
+            if total_pages
+            else f"Page {page_num}"
+        )
+        c.setStrokeColorRGB(0.8, 0.8, 0.8)
+        c.setLineWidth(0.4)
+        c.line(MARGIN, 0.55 * inch, pw - MARGIN, 0.55 * inch)
+        c.setFont("Helvetica", 7.5)
+        c.setFillColorRGB(0.5, 0.5, 0.5)
+        c.drawString(MARGIN, 0.45 * inch, footer_left)
+        c.drawRightString(pw - MARGIN, 0.45 * inch, page_str)
 
 
 def generate_enclosure_pdf(
@@ -67,7 +324,6 @@ def generate_enclosure_pdf(
     fp_config: Dict = config["footprints"]
     fixed_holes: List = config["fixed_holes"]
 
-    R = 3.0 * MM
     pw, ph = letter
 
     bbox = _board_bbox(board)
@@ -90,178 +346,35 @@ def generate_enclosure_pdf(
     ox = pw / 2
     oy = ph / 2 - 8 * MM
 
-    def to_pdf(ex: float, ey: float):
-        return ox + ex * MM, oy + ey * MM
-
-    def fp_to_enc(pcb_x: float, pcb_y: float, off_x: float = 0.0, off_y: float = 0.0):
-        """PCB absolute mm → enclosure mm.
-
-        X is mirrored around the board bounding-box centre (panel viewed from
-        outside = PCB front mirrored).  Y is anchored so the topmost external
-        control hole lands at TOP_ROW_MM above the enclosure centre.
-        """
-        return (
-            -(pcb_x - board_cx) + off_x,
-            (TOP_ROW_MM + top_pcb_y - pcb_y) + off_y,
-        )
-
-    c = rl_canvas.Canvas(out_path, pagesize=letter)
-
-    def draw_hole(ex: float, ey: float, dia: float, label: str) -> None:
-        hx, hy = to_pdf(ex, ey)
-        r = (dia / 2) * MM
-        cross = min(r + 1.5 * MM, 3.5 * MM)
-        c.setStrokeColorRGB(0, 0, 0)
-        c.setLineWidth(0.4)
-        c.circle(hx, hy, r, stroke=1, fill=0)
-        c.setLineWidth(0.25)
-        c.line(hx - cross, hy, hx + cross, hy)
-        c.line(hx, hy - cross, hx, hy + cross)
-        c.setFillColorRGB(0, 0, 0)
-        c.setFont("Helvetica", 5)
-        c.drawCentredString(hx, hy + r + 1.5 * MM, label)
-        c.setFont("Helvetica", 4)
-        c.drawCentredString(hx, hy - r - 3.0 * MM, f"\u00f8{dia:.1f} mm")
-
-    fl, fb = to_pdf(-enc_w / 2, -enc_h / 2)
+    fl, fb = ox + (-enc_w / 2) * MM, oy + (-enc_h / 2) * MM
     fw = enc_w * MM
     fh = enc_h * MM
     td = enc_d * MM
 
-    # ── Cross of rounded rectangles ───────────────────────────────────────────
-    c.setStrokeColorRGB(0, 0, 0)
-    c.setLineWidth(0.75)
-    c.roundRect(fl, fb, fw, fh, R, stroke=1, fill=0)  # face
+    c = rl_canvas.Canvas(out_path, pagesize=letter)
 
-    c.setLineWidth(0.5)
-    c.roundRect(fl, fb + fh, fw, td, R, stroke=1, fill=0)  # top tab
-    c.roundRect(fl, fb - td, fw, td, R, stroke=1, fill=0)  # bottom tab
-    c.roundRect(fl - td, fb, td, fh, R, stroke=1, fill=0)  # left tab
-    c.roundRect(fl + fw, fb, td, fh, R, stroke=1, fill=0)  # right tab
-
-    # ── Fold lines (dashed) at face boundary ──────────────────────────────────
-    c.saveState()
-    c.setDash([3, 3])
-    c.setStrokeColorRGB(0.45, 0.45, 0.45)
-    c.setLineWidth(0.4)
-    c.line(fl, fb + fh, fl + fw, fb + fh)
-    c.line(fl, fb, fl + fw, fb)
-    c.line(fl, fb, fl, fb + fh)
-    c.line(fl + fw, fb, fl + fw, fb + fh)
-    c.restoreState()
-
-    # ── Centre lines (extend through tabs) ────────────────────────────────────
-    c.saveState()
-    c.setDash([4, 3])
-    c.setStrokeColorRGB(0.65, 0.65, 0.65)
-    c.setLineWidth(0.3)
-    ext = 5 * MM
-    c.line(fl - td - ext, oy, fl + fw + td + ext, oy)
-    c.line(ox, fb - td - ext, ox, fb + fh + td + ext)
-    c.restoreState()
-
-    # ── Footprint-driven holes ────────────────────────────────────────────────
-    from kipy.board import BoardLayer
-
-    for fp in board.get_footprints():
-        fp_id = get_fp_id(fp)
-        if fp_id not in fp_config:
-            continue
-        cfg = fp_config[fp_id]
-        rx, ry = fp_to_enc(fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM)
-        ex = rx + cfg["offset_x"]
-        ey = ry + cfg["offset_y"]
-        label = cfg["label"] or get_field(fp, "Control") or fp.reference_field.text.value
-        draw_hole(ex, ey, cfg["hole_dia"], label)
-        _log(
-            f"    {label}: fp-origin ({rx:.2f}, {ry:.2f})"
-            f"  offset ({cfg['offset_x']:+.1f}, {cfg['offset_y']:+.1f})"
-            f"  hole ({ex:.2f}, {ey:.2f}) mm"
-        )
-
-    # ── Back-side LED/diode holes ─────────────────────────────────────────────
-    led_re = re.compile(r"^(D|LED)\d", re.IGNORECASE)
-    for fp in board.get_footprints():
-        ref = fp.reference_field.text.value
-        if not led_re.match(ref):
-            continue
-        if fp.layer != BoardLayer.BL_B_Cu:  # not flipped to back side
-            continue
-        fp_id = get_fp_id(fp)
-        cfg = fp_config.get(
-            fp_id, {"hole_dia": 3.2, "offset_x": 0.0, "offset_y": 0.0, "label": "LED"}
-        )
-        ex, ey = fp_to_enc(
-            fp.position.x / NM_PER_MM,
-            fp.position.y / NM_PER_MM,
-            cfg["offset_x"],
-            cfg["offset_y"],
-        )
-        label = cfg.get("label") or "LED"
-        draw_hole(ex, ey, cfg["hole_dia"], label)
-        _log(
-            f"    LED (back-side {ref}): enc ({ex:.1f}, {ey:.1f}) mm"
-            f"  \u00f8{cfg['hole_dia']} mm"
-        )
-
-    # ── Fixed holes ───────────────────────────────────────────────────────────
-    for hole in fixed_holes:
-        draw_hole(hole["x"], hole["y"], hole["dia"], hole["label"])
-        _log(
-            f"    {hole['label']} (fixed): ({hole['x']:.1f}, {hole['y']:.1f}) mm"
-            f"  \u00f8{hole['dia']} mm"
-        )
-
-    # ── Title block ───────────────────────────────────────────────────────────
-    c.setFillColorRGB(0, 0, 0)
-    c.setFont("Helvetica-Bold", 11)
-    title_y = fb + fh + td + 10 * MM
-    c.drawCentredString(ox, title_y, f"{project_name} \u2014 Enclosure Drilling Template")
-    c.setFont("Helvetica", 8)
-    c.setFillColorRGB(0.35, 0.35, 0.35)
-    c.drawCentredString(ox, title_y - 5 * MM, f"{enc_w:.0f} \u00d7 {enc_h:.0f} mm enclosure")
-
-    notice_y = fb - td - 7 * MM
-    c.setFont("Helvetica-Bold", 9)
-    c.setFillColorRGB(0.78, 0, 0)
-    c.drawCentredString(ox, notice_y, "PRINT AT 100% \u2014 DO NOT SCALE")
-    c.setFont("Helvetica", 6.5)
-    c.setFillColorRGB(0.45, 0.45, 0.45)
-    c.drawCentredString(
-        ox,
-        notice_y - 4.5 * MM,
-        "macOS: Print \u2192 Scale: 100%  \u2022  "
-        "Verify scale bar below measures exactly 25 mm before drilling",
+    renderer = _EnclosureRenderer(
+        c=c,
+        ox=ox,
+        oy=oy,
+        fl=fl,
+        fb=fb,
+        fw=fw,
+        fh=fh,
+        td=td,
+        board_cx=board_cx,
+        top_pcb_y=top_pcb_y,
     )
 
-    # ── Scale bar ─────────────────────────────────────────────────────────────
-    bar_len = 25
-    by0 = notice_y - 8 * MM
-    bx0 = ox - bar_len / 2 * MM
-    bx1 = bx0 + bar_len * MM
-    tick = 1.5 * MM
-    c.setStrokeColorRGB(0, 0, 0)
-    c.setFillColorRGB(0, 0, 0)
-    c.setLineWidth(1.0)
-    c.line(bx0, by0, bx1, by0)
-    c.setLineWidth(0.5)
-    c.line(bx0, by0 - tick, bx0, by0 + tick)
-    c.line(bx1, by0 - tick, bx1, by0 + tick)
-    c.setFont("Helvetica", 6)
-    c.drawCentredString((bx0 + bx1) / 2, by0 - 4 * MM, f"{bar_len} mm")
-
-    # ── Footer (matches body pages) ───────────────────────────────────────────
-    footer_left = project_name
-    if author:
-        footer_left += f"  \u00b7  {author}"
-    page_str = f"Page {page_num} of {total_pages}" if total_pages else f"Page {page_num}"
-    c.setStrokeColorRGB(0.8, 0.8, 0.8)
-    c.setLineWidth(0.4)
-    c.line(MARGIN, 0.55 * inch, pw - MARGIN, 0.55 * inch)
-    c.setFont("Helvetica", 7.5)
-    c.setFillColorRGB(0.5, 0.5, 0.5)
-    c.drawString(MARGIN, 0.45 * inch, footer_left)
-    c.drawRightString(pw - MARGIN, 0.45 * inch, page_str)
+    renderer.draw_outline()
+    renderer.draw_fold_lines()
+    renderer.draw_centre_lines()
+    renderer.draw_footprint_holes(board, fp_config, _log)
+    renderer.draw_led_holes(board, fp_config, _log)
+    renderer.draw_fixed_holes(fixed_holes, _log)
+    renderer.draw_title_block(project_name, enc_w, enc_h)
+    renderer.draw_scale_bar()
+    renderer.draw_footer(project_name, author, page_num, total_pages)
 
     c.save()
     _log("  Enclosure template written.")
