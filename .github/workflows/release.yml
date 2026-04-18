@@ -44,6 +44,7 @@ jobs:
         with:
           workflow: rebuild.yml
           repo: z2amiller/kicad-pcm
+          ref: main
           token: ${{ secrets.PCM_REPO_TOKEN }}
           inputs: |
             {
