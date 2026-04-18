@@ -18,7 +18,7 @@ from reportlab.platypus import PageBreak, SimpleDocTemplate
 
 from bom_pages import build_bom_story
 from footprint_utils import get_board_path
-from cover_page import build_cover_story
+from cover_page import apply_board_pdf_to_cover, build_cover_story, export_board_pdf
 from enclosure_template import generate_enclosure_pdf
 from panel_config import load_panel_config
 from pdf_utils import MARGIN, make_page_footer, merge_pdfs
@@ -50,6 +50,15 @@ class BuildDocGenerator:
         has_enc = self.params.get("include_enclosure")
         has_sch = self.params.get("include_sch")
 
+        # ── Export board image PDF (independent of page count) ────────────────
+        board_pdf_path = None
+        if self.params.get("include_cover"):
+            self._log("Exporting board image…")
+            try:
+                board_pdf_path = export_board_pdf(self.board, self.tmpdir, self._log)
+            except Exception as e:
+                self._log(f"  Board image failed: {e}")
+
         # ── Pass 1: render body (page count unknown) and export schematic ──────
         body_count = 0
         if has_body:
@@ -69,15 +78,21 @@ class BuildDocGenerator:
             else:
                 self._log("  Schematic export skipped.")
 
-        # Page order: body → schematic → enclosure template
+        # Page order: body (cover + BOM) → schematic → enclosure template
         self.total_pages = body_count + sch_count + enc_count
 
         # ── Pass 2: re-render body with correct total for footer ───────────────
         parts = []
         if has_body:
             self._log(f"Finalising cover / BOM pages (pass 2, total {self.total_pages})…")
-            self._render_body(body_pdf)
-            parts.append(body_pdf)
+            board_slot = self._render_body(body_pdf)
+
+            if board_pdf_path and board_slot is not None:
+                overlaid = os.path.join(self.tmpdir, "body_with_board.pdf")
+                apply_board_pdf_to_cover(body_pdf, board_pdf_path, board_slot, overlaid, self._log)
+                parts.append(overlaid)
+            else:
+                parts.append(body_pdf)
 
         if raw_sch:
             self._log("Stamping schematic footer…")
@@ -113,7 +128,7 @@ class BuildDocGenerator:
         self._log("Merging PDF…")
         merge_pdfs(parts, self.output_path)
 
-    def _render_body(self, out_path: str) -> None:
+    def _render_body(self, out_path: str):
         doc = SimpleDocTemplate(
             out_path,
             pagesize=letter,
@@ -124,9 +139,10 @@ class BuildDocGenerator:
         )
         styles = getSampleStyleSheet()
         story = []
+        board_slot = None
 
         if self.params.get("include_cover"):
-            story += build_cover_story(
+            cover_story, board_slot = build_cover_story(
                 board=self.board,
                 project_name=self.project_name,
                 author=self.author,
@@ -135,6 +151,7 @@ class BuildDocGenerator:
                 plugin_dir=self._plugin_dir,
                 log=self._log,
             )
+            story += cover_story
 
         if self.params.get("include_bom"):
             if story:
@@ -148,3 +165,4 @@ class BuildDocGenerator:
 
         footer_fn = make_page_footer(self.project_name, self.author, self.total_pages)
         doc.build(story, onFirstPage=footer_fn, onLaterPages=footer_fn)
+        return board_slot

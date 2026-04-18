@@ -9,7 +9,9 @@ from footprint_utils import get_board_path
 
 class BuildDocDialog(wx.Dialog):
     def __init__(self, parent, board):
-        super().__init__(parent, title="Build Document Generator", size=(500, 520))
+        _ver_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")
+        _ver = open(_ver_file).read().strip() if os.path.exists(_ver_file) else "dev"
+        super().__init__(parent, title=f"Build Document Generator v{_ver}", size=(500, 520))
         self.board = board
         self._build_ui()
 

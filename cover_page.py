@@ -9,11 +9,25 @@ from typing import Callable, List, Optional
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import Flowable, Paragraph, Spacer
 
 from footprint_utils import extract_controls, get_board_path
 from panel_config import load_panel_config
 from pdf_utils import COL_ACCENT, COL_HEADER_BG, MARGIN, PAGE_H, PAGE_W, hr
+
+
+class _BoardImageSlot(Flowable):
+    """Invisible placeholder that records its absolute page position for pypdf overlay."""
+
+    def __init__(self, width: float, height: float) -> None:
+        Flowable.__init__(self)
+        self.width = width
+        self.height = height
+        self.page_x: Optional[float] = None
+        self.page_y: Optional[float] = None
+
+    def draw(self) -> None:
+        self.page_x, self.page_y = self.canv.absolutePosition(0, 0)
 
 
 def build_cover_story(
@@ -24,7 +38,7 @@ def build_cover_story(
     tmpdir: str,
     plugin_dir: str,
     log: Optional[Callable] = None,
-) -> List:
+):
     _log = log or (lambda msg: None)
     story: List = []
     inner_w = PAGE_W - 2 * MARGIN
@@ -61,42 +75,9 @@ def build_cover_story(
     story.append(hr(inner_w))
     story.append(Spacer(1, 0.25 * inch))
 
-    note_style = ParagraphStyle(
-        "Note",
-        fontSize=9,
-        alignment=1,
-        textColor=colors.grey,
-        fontName="Helvetica-Oblique",
-    )
-    _log("Exporting board image…")
-    try:
-        png_path = export_board_image(board, tmpdir, _log)
-        _log(f"  PNG written: {png_path}")
-        from PIL import Image as PILImage
-        from reportlab.platypus import Image as RLImage
-
-        with PILImage.open(png_path) as pil_img:
-            img_w_px, img_h_px = pil_img.size
-        dpi = 300
-        img_w_pts = img_w_px * 72.0 / dpi
-        img_h_pts = img_h_px * 72.0 / dpi
-        _log(f"  PNG dims: {img_w_px}x{img_h_px}px → {img_w_pts:.1f}x{img_h_pts:.1f} pts")
-        max_w = inner_w
-        max_h = PAGE_H * 0.45
-        scale = min(max_w / img_w_pts, max_h / img_h_pts)
-        target_w = img_w_pts * scale
-        target_h = img_h_pts * scale
-        _log(f"  Rendered at {target_w:.1f} x {target_h:.1f} pts (scale {scale:.3f})")
-        img_elem = RLImage(png_path, width=target_w, height=target_h)
-        centered = Table([[img_elem]], colWidths=[inner_w])
-        centered.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
-        story.append(centered)
-        story.append(Spacer(1, 0.25 * inch))
-        _log("  Board image embedded OK.")
-    except Exception as e:
-        _log(f"  Board image failed: {e}")
-        story.append(Paragraph(f"[Board image unavailable: {e}]", note_style))
-        story.append(Spacer(1, 0.15 * inch))
+    slot = _BoardImageSlot(inner_w, PAGE_H * 0.45)
+    story.append(slot)
+    story.append(Spacer(1, 0.25 * inch))
 
     _log("Extracting controls…")
     config = load_panel_config(get_board_path(board), plugin_dir, _log)
@@ -147,11 +128,11 @@ def build_cover_story(
                     )
                 )
 
-    return story
+    return story, slot
 
 
-def export_board_image(board, tmpdir: str, log: Optional[Callable] = None) -> str:
-    """Export Edge.Cuts + silkscreen layers as PNG via kicad-cli."""
+def export_board_pdf(board, tmpdir: str, log: Optional[Callable] = None) -> str:
+    """Export Edge.Cuts + silkscreen layers as a single-page PDF via kicad-cli."""
     _log = log or (lambda msg: None)
 
     board_path = get_board_path(board)
@@ -173,7 +154,7 @@ def export_board_image(board, tmpdir: str, log: Optional[Callable] = None) -> st
     if not cli:
         raise RuntimeError("kicad-cli not found — cannot export board image.")
 
-    out_png = os.path.join(tmpdir, "board_front.png")
+    out_pdf = os.path.join(tmpdir, "board_front.pdf")
     layers = "Edge.Cuts,F.Mask,F.Paste,F.SilkS"
 
     env = os.environ.copy()
@@ -182,11 +163,12 @@ def export_board_image(board, tmpdir: str, log: Optional[Callable] = None) -> st
 
     result = subprocess.run(
         [
-            cli, "pcb", "export", "png",
+            cli, "pcb", "export", "pdf",
             "--layers", layers,
-            "--background-color", "white",
-            "--dpi", "300",
-            "--output", out_png,
+            "--scale", "0",
+            "--bg-color", "white",
+            "--mode-single",
+            "--output", out_pdf,
             board_path,
         ],
         capture_output=True,
@@ -195,11 +177,52 @@ def export_board_image(board, tmpdir: str, log: Optional[Callable] = None) -> st
         env=env,
     )
 
-    if result.returncode != 0 or not os.path.exists(out_png):
+    if result.returncode != 0 or not os.path.exists(out_pdf):
         raise RuntimeError(
-            f"kicad-cli PNG export failed (exit {result.returncode}): "
+            f"kicad-cli PDF export failed (exit {result.returncode}): "
             f"{result.stderr.strip()[:300]}"
         )
 
-    _log(f"  Board PNG exported: {out_png}")
-    return out_png
+    _log(f"  Board PDF exported: {out_pdf}")
+    return out_pdf
+
+
+def apply_board_pdf_to_cover(
+    cover_pdf_path: str,
+    board_pdf_path: str,
+    slot: _BoardImageSlot,
+    out_path: str,
+    log: Optional[Callable] = None,
+) -> None:
+    """Overlay the board PDF scaled into the slot area on cover page 1 using pypdf."""
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.transformations import Transformation
+
+    _log = log or (lambda msg: None)
+
+    if slot.page_x is None:
+        _log("  Board slot position not recorded — cover image skipped.")
+        import shutil as _shutil
+        _shutil.copy(cover_pdf_path, out_path)
+        return
+
+    board_reader = PdfReader(board_pdf_path)
+    board_page = board_reader.pages[0]
+    board_w = float(board_page.mediabox.width)
+    board_h = float(board_page.mediabox.height)
+
+    scale = min(slot.width / board_w, slot.height / board_h)
+    tx = slot.page_x + (slot.width - scale * board_w) / 2
+    ty = slot.page_y + (slot.height - scale * board_h) / 2
+    _log(f"  Overlaying board PDF: scale={scale:.3f}, pos=({tx:.1f}, {ty:.1f})")
+
+    transform = Transformation().scale(scale, scale).translate(tx, ty)
+
+    cover_reader = PdfReader(cover_pdf_path)
+    writer = PdfWriter()
+    writer.append(cover_reader)
+    writer.pages[0].merge_transformed_page(board_page, transform)
+
+    with open(out_path, "wb") as f:
+        writer.write(f)
+    _log("  Board image embedded on cover page.")
