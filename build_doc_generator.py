@@ -89,7 +89,10 @@ class BuildDocGenerator:
 
             if board_pdf_path and board_slot is not None:
                 overlaid = os.path.join(self.tmpdir, "body_with_board.pdf")
-                apply_board_pdf_to_cover(body_pdf, board_pdf_path, board_slot, overlaid, self._log)
+                apply_board_pdf_to_cover(
+                    body_pdf, board_pdf_path, board_slot, overlaid,
+                    log=self._log,
+                )
                 parts.append(overlaid)
             else:
                 parts.append(body_pdf)

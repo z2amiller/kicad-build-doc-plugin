@@ -75,7 +75,7 @@ def build_cover_story(
     story.append(hr(inner_w))
     story.append(Spacer(1, 0.25 * inch))
 
-    slot = _BoardImageSlot(inner_w, PAGE_H * 0.45)
+    slot = _BoardImageSlot(inner_w, PAGE_H * 0.55)
     story.append(slot)
     story.append(Spacer(1, 0.25 * inch))
 
@@ -187,11 +187,38 @@ def export_board_pdf(board, tmpdir: str, log: Optional[Callable] = None) -> str:
     return out_pdf
 
 
+def _board_pdf_content_bounds(board_page):
+    """Return (x0, y0, x1, y1) of actual drawn content on the board PDF page.
+
+    Uses a pypdf visitor to collect all path coordinates in device space.
+    Falls back to the full mediabox if no path data is found.
+    """
+    xs = []
+    ys = []
+
+    def _collect(op, args, cm, tm):
+        if op in (b"m", b"l") and len(args) >= 2:
+            a, b, c, d, e, f = cm
+            x, y = float(args[-2]), float(args[-1])
+            xs.append(a * x + c * y + e)
+            ys.append(b * x + d * y + f)
+
+    try:
+        board_page.extract_text(visitor_operand_before=_collect)
+    except Exception:
+        pass
+
+    if xs and ys:
+        return min(xs), min(ys), max(xs), max(ys)
+    return None
+
+
 def apply_board_pdf_to_cover(
     cover_pdf_path: str,
     board_pdf_path: str,
     slot: _BoardImageSlot,
     out_path: str,
+    board_size_mm: Optional[tuple] = None,
     log: Optional[Callable] = None,
 ) -> None:
     """Overlay the board PDF scaled into the slot area on cover page 1 using pypdf."""
@@ -207,12 +234,30 @@ def apply_board_pdf_to_cover(
 
     board_reader = PdfReader(board_pdf_path)
     board_page = board_reader.pages[0]
-    board_w = float(board_page.mediabox.width)
-    board_h = float(board_page.mediabox.height)
+    pdf_w = float(board_page.mediabox.width)
+    pdf_h = float(board_page.mediabox.height)
 
-    scale = min(slot.width / board_w, slot.height / board_h)
-    tx = slot.page_x + (slot.width - scale * board_w) / 2
-    ty = slot.page_y + (slot.height - scale * board_h) / 2
+    bounds = _board_pdf_content_bounds(board_page)
+    if bounds:
+        x0, y0, x1, y1 = bounds
+        content_w = x1 - x0
+        content_h = y1 - y0
+        content_cx = (x0 + x1) / 2
+        content_cy = (y0 + y1) / 2
+        _log(f"  Board content bounds: ({x0:.1f},{y0:.1f})–({x1:.1f},{y1:.1f}), "
+             f"size {content_w:.1f}×{content_h:.1f} pts")
+    else:
+        content_w = pdf_w
+        content_h = pdf_h
+        content_cx = pdf_w / 2
+        content_cy = pdf_h / 2
+        _log(f"  Board content: no path data, using full page {pdf_w:.1f}×{pdf_h:.1f}")
+
+    scale = min(slot.width / content_w, slot.height / content_h)
+    slot_cx = slot.page_x + slot.width / 2
+    slot_cy = slot.page_y + slot.height / 2
+    tx = slot_cx - scale * content_cx
+    ty = slot_cy - scale * content_cy
     _log(f"  Overlaying board PDF: scale={scale:.3f}, pos=({tx:.1f}, {ty:.1f})")
 
     transform = Transformation().scale(scale, scale).translate(tx, ty)
