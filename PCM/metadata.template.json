@@ -4,7 +4,7 @@
     "type": "plugin",
     "name": "Build Document Generator",
     "description": "Generates a PedalPCB-style build document PDF from the current board: cover page with board outline, parts list (BOM), and embedded schematic export.",
-    "description_full": "Produces a multi-page PDF build document styled after PedalPCB project docs. Includes a cover page with the board outline (Edge.Cuts + silkscreen), a formatted parts list pulled from footprint attributes, and optionally the schematic exported via kicad-cli. Python dependencies (reportlab, pypdf, svglib) are bundled in the plugin ZIP.",
+    "description_full": "Produces a multi-page PDF build document styled after PedalPCB project docs. Includes a cover page with the board outline (Edge.Cuts + silkscreen), a formatted parts list pulled from footprint attributes, and optionally the schematic exported via kicad-cli. Python dependencies (reportlab, pypdf, svglib) are installed automatically by KiCad into an isolated venv.",
     "author": {
         "name": "Andy Miller",
         "contact": {

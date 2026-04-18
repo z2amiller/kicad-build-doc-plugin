@@ -28,45 +28,26 @@ rm -rf "$ARCHIVE_DIR"
 echo "Create PCM folder structure"
 mkdir -p "$PLUGINS_DIR" "$RESOURCES_DIR"
 
-echo "Vendor Python dependencies into plugins/lib/"
-# Use KiCad's bundled Python 3.9 when available — it's the actual target runtime.
-# Falls back to whatever python3 is on PATH (CI uses Python 3.9 on Ubuntu).
-KICAD_PYTHON="/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3.9"
-if [ -x "$KICAD_PYTHON" ]; then
-    PIP_PYTHON="$KICAD_PYTHON"
-else
-    PIP_PYTHON="python3"
-fi
-"$PIP_PYTHON" -m pip install -q --prefer-binary -t "$PLUGINS_DIR/lib/" -r "$REPO_ROOT/requirements.txt"
-# Remove test files and caches from vendored packages
-find "$PLUGINS_DIR/lib/" -type d -name '__pycache__' -prune -exec rm -rf {} +
-find "$PLUGINS_DIR/lib/" -type f \( -name '*.pyc' -o -name '*.pyi' \) -delete
-find "$PLUGINS_DIR/lib/" -type d -name 'tests' -prune -exec rm -rf {} +
-
 echo "Copy plugin source files"
-for file in "$REPO_ROOT"/*.py "$REPO_ROOT"/*.txt "$REPO_ROOT"/metadata.json \
+for file in "$REPO_ROOT"/*.py "$REPO_ROOT"/*.txt "$REPO_ROOT"/plugin.json \
             "$REPO_ROOT"/LICENSE "$REPO_ROOT"/README.md; do
     [ -e "$file" ] || continue
-    cp "$file" "$PLUGINS_DIR/"
+    cp -f "$file" "$PLUGINS_DIR/"
 done
 
 echo "Copy icon to resources/"
-cp "$REPO_ROOT/icon.png" "$RESOURCES_DIR/"
+cp -f "$REPO_ROOT/icon.png" "$RESOURCES_DIR/"
 
 echo "Write version to plugins/VERSION"
 echo "$VERSION" > "$PLUGINS_DIR/VERSION"
 
-echo "Generate metadata.json"
+echo "Generate metadata.json with placeholder values"
 cp "$REPO_ROOT/PCM/metadata.template.json" "$METADATA_FILE"
 sed_inplace "s/VERSION_HERE/$VERSION/g" "$METADATA_FILE"
-
-# Placeholders will be filled after we know the ZIP stats
-for placeholder in SHA256_HERE DOWNLOAD_URL_HERE; do
-    sed_inplace "s/$placeholder/PENDING/g" "$METADATA_FILE"
-done
-for placeholder in DOWNLOAD_SIZE_HERE INSTALL_SIZE_HERE; do
-    sed_inplace "s/$placeholder/0/g" "$METADATA_FILE"
-done
+sed_inplace "s/SHA256_HERE/PENDING_SHA256/g" "$METADATA_FILE"
+sed_inplace "s|DOWNLOAD_URL_HERE|PENDING_URL|g" "$METADATA_FILE"
+sed_inplace "s/DOWNLOAD_SIZE_HERE/0/g" "$METADATA_FILE"
+sed_inplace "s/INSTALL_SIZE_HERE/0/g" "$METADATA_FILE"
 
 echo "Build ZIP"
 (cd "$ARCHIVE_DIR" && zip -r "$ZIP_FILE" .)
@@ -78,13 +59,13 @@ DOWNLOAD_URL="https://github.com/z2amiller/kicad-build-doc-plugin/releases/downl
 INSTALL_SIZE=$(unzip -l "$ZIP_FILE" | awk 'END{print $1}')
 
 echo "Patch metadata.json with real values"
-sed_inplace "s/PENDING/$DOWNLOAD_SHA256/g" "$METADATA_FILE"
-sed_inplace "s|\"download_url\": \"PENDING\"|\"download_url\": \"$DOWNLOAD_URL\"|g" "$METADATA_FILE"
+sed_inplace "s/PENDING_SHA256/$DOWNLOAD_SHA256/g" "$METADATA_FILE"
+sed_inplace "s|PENDING_URL|$DOWNLOAD_URL|g" "$METADATA_FILE"
 sed_inplace "s/\"download_size\": 0/\"download_size\": $DOWNLOAD_SIZE/g" "$METADATA_FILE"
 sed_inplace "s/\"install_size\": 0/\"install_size\": $INSTALL_SIZE/g" "$METADATA_FILE"
 
 echo "Rebuild ZIP with final metadata"
-(cd "$ARCHIVE_DIR" && zip -u "$ZIP_FILE" metadata.json)
+(cd "$ARCHIVE_DIR" && zip -d "$ZIP_FILE" metadata.json && zip "$ZIP_FILE" metadata.json)
 
 if [ -n "${GITHUB_ENV:-}" ]; then
     echo "VERSION=$VERSION" >> "$GITHUB_ENV"
