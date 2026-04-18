@@ -1,4 +1,5 @@
 {
+    "$schema": "https://go.kicad.org/pcm/schemas/v1",
     "identifier": "com.github.z2amiller.builddoc",
     "type": "plugin",
     "name": "Build Document Generator",
@@ -20,5 +21,14 @@
     "resources": {
         "homepage": "https://github.com/z2amiller/kicad-build-doc-plugin"
     },
-    "tags": ["documentation", "bom", "pdf", "pedal", "fabrication"]
+    "tags": ["documentation", "bom", "pdf", "pedal", "fabrication"],
+    "versions": [{
+        "version": "VERSION_HERE",
+        "status": "stable",
+        "kicad_version": "9.0",
+        "download_sha256": "SHA256_HERE",
+        "download_size": DOWNLOAD_SIZE_HERE,
+        "download_url": "DOWNLOAD_URL_HERE",
+        "install_size": INSTALL_SIZE_HERE
+    }]
 }

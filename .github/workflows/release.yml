@@ -15,48 +15,28 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Vendor dependencies
-        run: pip install -t lib/ -r requirements.txt
-
-      - name: Build release ZIP
+      - name: Build PCM archive
         run: |
-          TAG=${GITHUB_REF_NAME}
-          ZIP_NAME="kicad-build-doc-plugin-${TAG}.zip"
-          # PCM expects the plugin folder to be at the top level of the ZIP
-          zip -r "${ZIP_NAME}" \
-            __init__.py \
-            bom_pages.py \
-            build_doc_dialog.py \
-            build_doc_generator.py \
-            cover_page.py \
-            enclosure_template.py \
-            external_footprints.txt \
-            footprint_utils.py \
-            panel_config.py \
-            pdf_utils.py \
-            schematic_export.py \
-            icon.png \
-            metadata.json \
-            requirements.txt \
-            LICENSE \
-            README.md \
-            lib/
-          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
-          # Compute SHA256 for PCM metadata
-          sha256sum "${ZIP_NAME}" | awk '{print $1}' > "${ZIP_NAME}.sha256"
-          echo "SHA256=$(cat ${ZIP_NAME}.sha256)" >> $GITHUB_ENV
+          VERSION=${GITHUB_REF_NAME#v}
+          bash PCM/create_pcm_archive.sh "$VERSION"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ${{ env.ZIP_NAME }}
-            ${{ env.ZIP_NAME }}.sha256
+          files: ${{ env.ZIP_FILE }}
           generate_release_notes: true
           body: |
-            ## Installation
+            ## Installation via KiCad Plugin Manager
 
-            Download `${{ env.ZIP_NAME }}` and install via KiCad's Plugin and Content Manager
-            (PCM), or extract manually into your KiCad scripting plugins directory.
+            Open KiCad → **Plugin and Content Manager** → **Install from File**,
+            then select the ZIP below.
 
-            **SHA256:** `${{ env.SHA256 }}`
+            Or extract manually into your KiCad scripting plugins directory
+            (no separate `pip install` needed — dependencies are bundled).
+
+            **SHA256:** `${{ env.DOWNLOAD_SHA256 }}`
+
+            ## PCM Repository Submission
+
+            The `metadata.json` inside the ZIP contains all fields needed for a
+            [kicad-addons](https://gitlab.com/kicad/addons/repository) PR.

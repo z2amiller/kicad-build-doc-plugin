@@ -1,10 +1,12 @@
-# Runtime dependencies — vendored into lib/ for KiCad's bundled Python.
-# To update: pip install -t lib/ -r requirements.txt
+# Required — vendored into the plugin ZIP for distribution.
+# Install with: pip install -t lib/ -r requirements.txt
 reportlab==4.4.10
 pypdf>=3.0
-svglib==1.6.0
 lxml==6.0.4
 pillow==11.3.0
 
-# Development / testing (system Python, not vendored)
-# pip install pytest ruff
+# Optional — improves board outline rendering on the cover page.
+# Requires libcairo (brew install cairo on macOS, apt install libcairo2 on Linux).
+# NOT vendored in the release ZIP; install manually in KiCad's Scripting Console if desired:
+#   import subprocess, sys; subprocess.run([sys.executable, "-m", "pip", "install", "svglib"])
+# svglib==1.6.0
