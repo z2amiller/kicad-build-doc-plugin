@@ -1,0 +1,10 @@
+# Runtime dependencies — vendored into lib/ for KiCad's bundled Python.
+# To update: pip install -t lib/ -r requirements.txt
+reportlab==4.4.10
+pypdf>=3.0
+svglib==1.6.0
+lxml==6.0.4
+pillow==11.3.0
+
+# Development / testing (system Python, not vendored)
+# pip install pytest ruff
