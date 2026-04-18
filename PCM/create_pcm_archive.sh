@@ -67,6 +67,10 @@ sed_inplace "s/\"install_size\": 0/\"install_size\": $INSTALL_SIZE/g" "$METADATA
 echo "Rebuild ZIP with final metadata"
 (cd "$ARCHIVE_DIR" && zip -d "$ZIP_FILE" metadata.json && zip "$ZIP_FILE" metadata.json)
 
+echo "Recompute final archive stats after metadata update"
+DOWNLOAD_SHA256=$(shasum --algorithm 256 "$ZIP_FILE" | awk '{print $1}')
+DOWNLOAD_SIZE=$(wc -c < "$ZIP_FILE" | tr -d '[:space:]')
+
 if [ -n "${GITHUB_ENV:-}" ]; then
     echo "VERSION=$VERSION" >> "$GITHUB_ENV"
     echo "DOWNLOAD_SHA256=$DOWNLOAD_SHA256" >> "$GITHUB_ENV"
