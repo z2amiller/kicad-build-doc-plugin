@@ -91,6 +91,7 @@ class BuildDocGenerator:
                 overlaid = os.path.join(self.tmpdir, "body_with_board.pdf")
                 apply_board_pdf_to_cover(
                     body_pdf, board_pdf_path, board_slot, overlaid,
+                    board_size_mm=self._board_size_mm(),
                     log=self._log,
                 )
                 parts.append(overlaid)
@@ -130,6 +131,18 @@ class BuildDocGenerator:
 
         self._log("Merging PDF…")
         merge_pdfs(parts, self.output_path)
+
+    def _board_size_mm(self):
+        """Return (width_mm, height_mm) of the board's Edge.Cuts bounding box, or None."""
+        try:
+            from enclosure_template import _board_bbox
+            NM_PER_MM = 1_000_000
+            bbox = _board_bbox(self.board)
+            if bbox:
+                return (bbox.size.x / NM_PER_MM, bbox.size.y / NM_PER_MM)
+        except Exception:
+            pass
+        return None
 
     def _render_body(self, out_path: str):
         doc = SimpleDocTemplate(

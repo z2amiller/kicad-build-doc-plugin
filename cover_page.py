@@ -1,14 +1,16 @@
 """Cover page: project title, board image, and controls list."""
 
 import datetime
+import io
 import os
 import shutil
 import subprocess
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple
 
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.platypus import Flowable, Paragraph, Spacer
 
 from footprint_utils import extract_controls, get_board_path
@@ -213,12 +215,74 @@ def _board_pdf_content_bounds(board_page):
     return None
 
 
+def _dimension_overlay(
+    page_w: float,
+    page_h: float,
+    left: float,
+    right: float,
+    bottom: float,
+    top: float,
+    width_mm: float,
+    height_mm: float,
+) -> io.BytesIO:
+    """Return a BytesIO PDF with dimension arrows drawn outside the board bounds."""
+    buf = io.BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=(page_w, page_h))
+
+    GAP = 6       # pts between board edge and dimension line
+    TICK = 5      # half-length of end tick marks
+    FONT_SIZE = 7
+
+    c.setStrokeColorRGB(0.25, 0.25, 0.25)
+    c.setFillColorRGB(0.25, 0.25, 0.25)
+    c.setLineWidth(0.5)
+    c.setFont("Helvetica", FONT_SIZE)
+
+    # ── Width dimension (below board) ────────────────────────────────────────
+    y_line = bottom - GAP
+    c.line(left, y_line, right, y_line)
+    c.line(left,  y_line - TICK, left,  y_line + TICK)
+    c.line(right, y_line - TICK, right, y_line + TICK)
+    label_w = f"{width_mm:.1f} mm"
+    mid_x = (left + right) / 2
+    # White knockout so label is readable if it overlaps the line
+    label_w_pts = c.stringWidth(label_w, "Helvetica", FONT_SIZE)
+    pad = 2
+    c.setFillColorRGB(1, 1, 1)
+    c.rect(mid_x - label_w_pts / 2 - pad, y_line - FONT_SIZE / 2,
+           label_w_pts + 2 * pad, FONT_SIZE, stroke=0, fill=1)
+    c.setFillColorRGB(0.25, 0.25, 0.25)
+    c.drawCentredString(mid_x, y_line - FONT_SIZE / 2 + 1, label_w)
+
+    # ── Height dimension (right of board) ────────────────────────────────────
+    x_line = right + GAP
+    c.line(x_line, bottom, x_line, top)
+    c.line(x_line - TICK, bottom, x_line + TICK, bottom)
+    c.line(x_line - TICK, top,    x_line + TICK, top)
+    label_h = f"{height_mm:.1f} mm"
+    mid_y = (bottom + top) / 2
+    label_h_pts = c.stringWidth(label_h, "Helvetica", FONT_SIZE)
+    c.saveState()
+    c.translate(x_line + FONT_SIZE / 2 + 2, mid_y)
+    c.rotate(90)
+    c.setFillColorRGB(1, 1, 1)
+    c.rect(-label_h_pts / 2 - pad, -FONT_SIZE / 2,
+           label_h_pts + 2 * pad, FONT_SIZE, stroke=0, fill=1)
+    c.setFillColorRGB(0.25, 0.25, 0.25)
+    c.drawCentredString(0, -FONT_SIZE / 2 + 1, label_h)
+    c.restoreState()
+
+    c.save()
+    buf.seek(0)
+    return buf
+
+
 def apply_board_pdf_to_cover(
     cover_pdf_path: str,
     board_pdf_path: str,
     slot: _BoardImageSlot,
     out_path: str,
-    board_size_mm: Optional[tuple] = None,
+    board_size_mm: Optional[Tuple[float, float]] = None,
     log: Optional[Callable] = None,
 ) -> None:
     """Overlay the board PDF scaled into the slot area on cover page 1 using pypdf."""
@@ -263,9 +327,28 @@ def apply_board_pdf_to_cover(
     transform = Transformation().scale(scale, scale).translate(tx, ty)
 
     cover_reader = PdfReader(cover_pdf_path)
+    cover_page_w = float(cover_reader.pages[0].mediabox.width)
+    cover_page_h = float(cover_reader.pages[0].mediabox.height)
+
     writer = PdfWriter()
     writer.append(cover_reader)
     writer.pages[0].merge_transformed_page(board_page, transform)
+
+    if board_size_mm and bounds:
+        bw_mm, bh_mm = board_size_mm
+        # Board content edges in cover-page coordinate space
+        left   = x0 * scale + tx
+        right  = x1 * scale + tx
+        bottom = y0 * scale + ty
+        top    = y1 * scale + ty
+        _log(f"  Drawing dimension annotations: {bw_mm:.1f} × {bh_mm:.1f} mm")
+        dim_buf = _dimension_overlay(
+            cover_page_w, cover_page_h,
+            left, right, bottom, top,
+            bw_mm, bh_mm,
+        )
+        dim_page = PdfReader(dim_buf).pages[0]
+        writer.pages[0].merge_page(dim_page)
 
     with open(out_path, "wb") as f:
         writer.write(f)
