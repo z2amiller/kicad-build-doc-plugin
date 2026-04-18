@@ -238,14 +238,13 @@ def _dimension_overlay(
     c.setLineWidth(0.5)
     c.setFont("Helvetica", FONT_SIZE)
 
-    # ── Width dimension (below board) ────────────────────────────────────────
-    y_line = bottom - GAP
+    # ── Width dimension (above board) ────────────────────────────────────────
+    y_line = top + GAP
     c.line(left, y_line, right, y_line)
     c.line(left,  y_line - TICK, left,  y_line + TICK)
     c.line(right, y_line - TICK, right, y_line + TICK)
     label_w = f"{width_mm:.1f} mm"
     mid_x = (left + right) / 2
-    # White knockout so label is readable if it overlaps the line
     label_w_pts = c.stringWidth(label_w, "Helvetica", FONT_SIZE)
     pad = 2
     c.setFillColorRGB(1, 1, 1)
@@ -254,8 +253,8 @@ def _dimension_overlay(
     c.setFillColorRGB(0.25, 0.25, 0.25)
     c.drawCentredString(mid_x, y_line - FONT_SIZE / 2 + 1, label_w)
 
-    # ── Height dimension (right of board) ────────────────────────────────────
-    x_line = right + GAP
+    # ── Height dimension (left of board) ─────────────────────────────────────
+    x_line = left - GAP
     c.line(x_line, bottom, x_line, top)
     c.line(x_line - TICK, bottom, x_line + TICK, bottom)
     c.line(x_line - TICK, top,    x_line + TICK, top)
@@ -263,7 +262,7 @@ def _dimension_overlay(
     mid_y = (bottom + top) / 2
     label_h_pts = c.stringWidth(label_h, "Helvetica", FONT_SIZE)
     c.saveState()
-    c.translate(x_line + FONT_SIZE / 2 + 2, mid_y)
+    c.translate(x_line - FONT_SIZE / 2 - 2, mid_y)
     c.rotate(90)
     c.setFillColorRGB(1, 1, 1)
     c.rect(-label_h_pts / 2 - pad, -FONT_SIZE / 2,
