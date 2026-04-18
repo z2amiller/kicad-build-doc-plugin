@@ -1,6 +1,6 @@
 # KiCad Build Document Generator
 
-Generates a **Build document PDF** directly from an open KiCad 9 board. The document can include a cover page with the board outline and controls list, a parts list (BOM), an enclosure drilling template at 1:1 scale, and an exported schematic — all merged into a single PDF.
+Generates a **Build document PDF** directly from an open KiCad 9+ board. The document can include a cover page with the board outline and controls list, a parts list (BOM), an enclosure drilling template at 1:1 scale, and an exported schematic — all merged into a single PDF.
 
 ---
 
