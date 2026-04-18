@@ -1,6 +1,6 @@
 # KiCad Build Document Generator
 
-Generates a **PedalPCB-style build document PDF** directly from an open KiCad 9 board. The document can include a cover page with the board outline and controls list, a parts list (BOM), an enclosure drilling template at 1:1 scale, and an exported schematic — all merged into a single PDF.
+Generates a **Build document PDF** directly from an open KiCad 9 board. The document can include a cover page with the board outline and controls list, a parts list (BOM), an enclosure drilling template at 1:1 scale, and an exported schematic — all merged into a single PDF.
 
 ---
 
@@ -9,8 +9,10 @@ Generates a **PedalPCB-style build document PDF** directly from an open KiCad 9 
 ### Via KiCad Plugin Manager (recommended)
 
 1. Open KiCad → **Plugin and Content Manager**
-2. Search for **Build Document Generator**
-3. Click **Install**
+2. To the right of the repository selector, hit **Manage**
+3. Add a new repository: https://raw.githubusercontent.com/z2amiller/kicad-pcm/main/repository.json
+4. Select this repository and install the **Build Document Generator**
+5. Click **Install**
 
 ### Manual installation
 
@@ -24,6 +26,15 @@ Copy the plugin folder to your KiCad scripting plugins directory:
 
 Then in the PCB Editor: **Tools → External Plugins → Refresh Plugins**
 
+### Caveat:  Kicad 10
+
+In KiCad 10.0.0, there's a bug with refreshing plugins into the toolbar.  You have to
+manually refresh your plugins to make the toolbar show every time you launch the
+PCB editor.  You have to go to **Settings -> PCB Editor -> Plugins** and toggle one
+of the visibility checkmarks.
+
+Or even better, upgrade to KiCad 10.0.1 that does not have this bug.
+
 ### Python dependencies
 
 The plugin installs its own Python environment automatically via the KiCad Plugin Manager. If you installed manually, open the KiCad Scripting Console (`Tools → Scripting Console`) and run:
@@ -35,6 +46,9 @@ subprocess.run([sys.executable, "-m", "pip", "install",
 ```
 
 ---
+
+***NOTE*** The first launch after you run this plugin can be slow, since it has
+to install these dependencies.
 
 ## Basic usage
 
@@ -94,7 +108,7 @@ Sets the physical size of the enclosure face. `depth_mm` defaults to 35 if omitt
 ENCLOSURE 62 117 35
 ```
 
-**Panel footprints** (external controls that need drilled holes):
+**Autodetection: Panel footprints** (external controls that need drilled holes):
 ```
 LibraryName:FootprintName  hole_dia_mm  offset_x_mm  offset_y_mm  [label]
 ```
@@ -105,9 +119,10 @@ LibraryName:FootprintName  hole_dia_mm  offset_x_mm  offset_y_mm  [label]
 - `label` — optional; if omitted, the footprint's `Control` field is used, then the reference
 
 ```
-_MB_switches:SPDT.LUGS    7.6   0    0
-Panel:Alpha9mm            7.0   0    0       Volume
-LED_THT:LED_D3.0mm        3.2   1.27 0       LED
+_MB_switches:SPDT.LUGS           7.6   0    0
+_MB_potentiometers:16MM_B.MOUNT  8.2   0    16
+Panel:Alpha9mm                   7.0   0    0       Volume
+LED_THT:LED_D3.0mm               3.2   1.27 0       LED
 ```
 
 **Fixed holes** (holes at specific enclosure coordinates, not derived from PCB position):
@@ -118,8 +133,8 @@ FIXED  label  hole_dia_mm  x_mm  y_mm
 Coordinates are in mm measured from the enclosure centre. Positive Y is up, positive X is right.
 
 ```
-FIXED  Footswitch  12.2   0   -45.2
-FIXED  DC Jack      8.0  28    0
+FIXED  Footswitch  12.2   0      -45.2
+FIXED  LED          3.2  -20.5   -45.2    
 ```
 
 ### How hole positions are calculated
@@ -138,9 +153,8 @@ Place an `external_footprints.txt` file in the same directory as your `.kicad_pc
 **Common reasons to add a per-project override:**
 
 - Your enclosure is a non-standard size
-- You need fixed holes for a DC jack or footswitch at a specific position
+- You need fixed holes for a DC jack or footswitch at a specific position (e.g. double footswitches)
 - A custom footprint has different hole sizing than the default
-- Multiple footswitches of the same type land at different positions (use `FIXED` for all of them)
 - You want to override only the enclosure dimensions and keep the footprint list as-is
 
 Example per-project `external_footprints.txt`:
@@ -157,7 +171,7 @@ Panel:Alpha9mm           7.0  0  0
 FIXED  Bypass  12.2  0  -22
 ```
 
-### Back-panel LEDs
+### Autodetection: Back-panel LEDs
 
 LEDs mounted on the **back copper layer** (B.Cu) are treated as panel indicators and automatically get a hole in the drilling template — no entry in `external_footprints.txt` required. The default hole diameter is 3.2 mm. To override the size for a specific LED footprint, add it to `external_footprints.txt` as a normal footprint entry.
 
