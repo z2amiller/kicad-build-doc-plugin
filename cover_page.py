@@ -70,22 +70,25 @@ def build_cover_story(
     )
     _log("Exporting board image…")
     try:
-        svg_path = export_board_image(board, tmpdir, _log)
-        _log(f"  SVG written: {svg_path}")
-        from svglib.svglib import svg2rlg
+        png_path = export_board_image(board, tmpdir, _log)
+        _log(f"  PNG written: {png_path}")
+        from PIL import Image as PILImage
+        from reportlab.platypus import Image as RLImage
 
-        drawing = svg2rlg(svg_path)
-        if drawing is None:
-            raise RuntimeError("svglib returned None for the SVG.")
-        _log(f"  SVG dims from svglib: {drawing.width:.1f} x {drawing.height:.1f} pts")
+        with PILImage.open(png_path) as pil_img:
+            img_w_px, img_h_px = pil_img.size
+        dpi = 300
+        img_w_pts = img_w_px * 72.0 / dpi
+        img_h_pts = img_h_px * 72.0 / dpi
+        _log(f"  PNG dims: {img_w_px}x{img_h_px}px → {img_w_pts:.1f}x{img_h_pts:.1f} pts")
         max_w = inner_w
         max_h = PAGE_H * 0.45
-        scale = min(max_w / drawing.width, max_h / drawing.height)
-        drawing.width *= scale
-        drawing.height *= scale
-        drawing.transform = (scale, 0, 0, scale, 0, 0)
-        _log(f"  Rendered at {drawing.width:.1f} x {drawing.height:.1f} pts (scale {scale:.3f})")
-        centered = Table([[drawing]], colWidths=[inner_w])
+        scale = min(max_w / img_w_pts, max_h / img_h_pts)
+        target_w = img_w_pts * scale
+        target_h = img_h_pts * scale
+        _log(f"  Rendered at {target_w:.1f} x {target_h:.1f} pts (scale {scale:.3f})")
+        img_elem = RLImage(png_path, width=target_w, height=target_h)
+        centered = Table([[img_elem]], colWidths=[inner_w])
         centered.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER")]))
         story.append(centered)
         story.append(Spacer(1, 0.25 * inch))
@@ -148,11 +151,7 @@ def build_cover_story(
 
 
 def export_board_image(board, tmpdir: str, log: Optional[Callable] = None) -> str:
-    """Export Edge.Cuts + silkscreen layers as SVG via kicad-cli.
-
-    Uses --page-size-mode 2 (board area only) so the output is already
-    cropped to the board outline with no page border.
-    """
+    """Export Edge.Cuts + silkscreen layers as PNG via kicad-cli."""
     _log = log or (lambda msg: None)
 
     board_path = board.name
@@ -174,7 +173,7 @@ def export_board_image(board, tmpdir: str, log: Optional[Callable] = None) -> st
     if not cli:
         raise RuntimeError("kicad-cli not found — cannot export board image.")
 
-    out_svg = os.path.join(tmpdir, "board_front.svg")
+    out_png = os.path.join(tmpdir, "board_front.png")
     layers = "Edge.Cuts,F.Mask,F.Paste,F.SilkS"
 
     env = os.environ.copy()
@@ -183,12 +182,11 @@ def export_board_image(board, tmpdir: str, log: Optional[Callable] = None) -> st
 
     result = subprocess.run(
         [
-            cli, "pcb", "export", "svg",
+            cli, "pcb", "export", "png",
             "--layers", layers,
-            "--page-size-mode", "2",
-            "--exclude-drawing-sheet",
-            "--mode-single",
-            "--output", out_svg,
+            "--background-color", "white",
+            "--dpi", "300",
+            "--output", out_png,
             board_path,
         ],
         capture_output=True,
@@ -197,11 +195,11 @@ def export_board_image(board, tmpdir: str, log: Optional[Callable] = None) -> st
         env=env,
     )
 
-    if result.returncode != 0 or not os.path.exists(out_svg):
+    if result.returncode != 0 or not os.path.exists(out_png):
         raise RuntimeError(
-            f"kicad-cli SVG export failed (exit {result.returncode}): "
+            f"kicad-cli PNG export failed (exit {result.returncode}): "
             f"{result.stderr.strip()[:300]}"
         )
 
-    _log(f"  Board SVG exported: {out_svg}")
-    return out_svg
+    _log(f"  Board PNG exported: {out_png}")
+    return out_png
