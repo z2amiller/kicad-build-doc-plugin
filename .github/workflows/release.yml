@@ -32,12 +32,25 @@ jobs:
             Open KiCad → **Plugin and Content Manager** → **Install from File**,
             then select the ZIP below.
 
-            Or extract manually into your KiCad scripting plugins directory
-            (no separate `pip install` needed — dependencies are bundled).
+            Or add the self-hosted repository to KiCad PCM:
+            `https://raw.githubusercontent.com/z2amiller/kicad-pcm/main/repository.json`
+
+            No separate `pip install` needed — dependencies are bundled.
 
             **SHA256:** `${{ env.DOWNLOAD_SHA256 }}`
 
-            ## PCM Repository Submission
-
-            The `metadata.json` inside the ZIP contains all fields needed for a
-            [kicad-addons](https://gitlab.com/kicad/addons/repository) PR.
+      - name: Trigger PCM repository rebuild
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: rebuild.yml
+          repo: z2amiller/kicad-pcm
+          token: ${{ secrets.PCM_REPO_TOKEN }}
+          inputs: |
+            {
+              "package_id": "com.github.z2amiller.builddoc",
+              "version": "${{ env.VERSION }}",
+              "download_url": "${{ env.DOWNLOAD_URL }}",
+              "download_sha256": "${{ env.DOWNLOAD_SHA256 }}",
+              "download_size": "${{ env.DOWNLOAD_SIZE }}",
+              "install_size": "${{ env.INSTALL_SIZE }}"
+            }
