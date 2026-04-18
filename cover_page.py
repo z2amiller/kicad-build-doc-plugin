@@ -195,8 +195,7 @@ def apply_board_pdf_to_cover(
     log: Optional[Callable] = None,
 ) -> None:
     """Overlay the board PDF scaled into the slot area on cover page 1 using pypdf."""
-    from pypdf import PdfReader, PdfWriter
-    from pypdf.transformations import Transformation
+    from pypdf import PdfReader, PdfWriter, Transformation
 
     _log = log or (lambda msg: None)
 
