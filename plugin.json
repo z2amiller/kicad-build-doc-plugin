@@ -1,0 +1,22 @@
+{
+    "$schema": "https://go.kicad.org/api/schemas/v1",
+    "identifier": "com.github.z2amiller.builddoc",
+    "name": "Build Document Generator",
+    "description": "Generate a PedalPCB-style build document PDF from the current board.",
+    "runtime": {
+        "type": "python",
+        "min_version": "3.9"
+    },
+    "actions": [
+        {
+            "identifier": "generate-build-doc",
+            "name": "Build Document Generator",
+            "description": "Generate a PedalPCB-style build document PDF (cover, BOM, schematic)",
+            "entrypoint": "ipc_plugin_main.py",
+            "show-button": true,
+            "scopes": ["pcb"],
+            "icons-light": ["icon.png"],
+            "icons-dark": ["icon.png"]
+        }
+    ]
+}

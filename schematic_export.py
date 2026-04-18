@@ -21,7 +21,7 @@ def export_schematic_pdf(
     sub-sheets automatically.
     """
     _log = log or (lambda msg: None)
-    board_path = board.GetFileName()
+    board_path = board.name
     canonical = os.path.splitext(board_path)[0] + ".kicad_sch"
     override = params.get("sch_path", "").strip()
     root_sch = canonical if os.path.exists(canonical) else (override or canonical)

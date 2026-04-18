@@ -1,9 +1,9 @@
 """1:1 scale enclosure drilling template PDF generation."""
+from __future__ import annotations
 
 import re
 from typing import Callable, Dict, List, Optional
 
-import pcbnew
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas as rl_canvas
@@ -13,6 +13,22 @@ from pdf_utils import MARGIN
 
 MM = 72.0 / 25.4  # PDF points per mm
 TOP_ROW_MM = 38.0  # enclosure Y of the topmost control row
+NM_PER_MM = 1_000_000  # kipy uses nanometres
+
+
+def _board_bbox(board):
+    """Return merged bounding box of all Edge.Cuts shapes as a kipy Box2, or None."""
+    from kipy.board import BoardLayer
+    edge_shapes = [s for s in board.get_shapes() if s.layer == BoardLayer.BL_Edge_Cuts]
+    if not edge_shapes:
+        return None
+    bboxes = board.get_item_bounding_box(edge_shapes)
+    if not bboxes:
+        return None
+    result = bboxes[0]
+    for b in bboxes[1:]:
+        result.merge(b)
+    return result
 
 
 def generate_enclosure_pdf(
@@ -43,12 +59,14 @@ def generate_enclosure_pdf(
     R = 3.0 * MM
     pw, ph = letter
 
-    bbox = board.GetBoardEdgesBoundingBox()
-    board_cx = pcbnew.ToMM(bbox.GetCenter().x)
+    bbox = _board_bbox(board)
+    if bbox is None:
+        raise RuntimeError("No Edge.Cuts shapes found — cannot determine board outline.")
+    board_cx = bbox.center().x / NM_PER_MM
 
     top_pcb_y = _find_top_anchor(board, fp_config)
     if top_pcb_y is None:
-        top_pcb_y = pcbnew.ToMM(bbox.GetCenter().y)
+        top_pcb_y = bbox.center().y / NM_PER_MM
         _log("  No external controls found — falling back to board centre for Y.")
     else:
         _log(
@@ -132,16 +150,17 @@ def generate_enclosure_pdf(
     c.restoreState()
 
     # ── Footprint-driven holes ────────────────────────────────────────────────
-    for fp in board.GetFootprints():
+    from kipy.board import BoardLayer
+
+    for fp in board.get_footprints():
         fp_id = get_fp_id(fp)
         if fp_id not in fp_config:
             continue
         cfg = fp_config[fp_id]
-        pos = fp.GetPosition()
-        rx, ry = fp_to_enc(pcbnew.ToMM(pos.x), pcbnew.ToMM(pos.y))
+        rx, ry = fp_to_enc(fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM)
         ex = rx + cfg["offset_x"]
         ey = ry + cfg["offset_y"]
-        label = cfg["label"] or get_field(fp, "Control") or fp.GetReference()
+        label = cfg["label"] or get_field(fp, "Control") or fp.reference_field.text.value
         draw_hole(ex, ey, cfg["hole_dia"], label)
         _log(
             f"    {label}: fp-origin ({rx:.2f}, {ry:.2f})"
@@ -151,26 +170,26 @@ def generate_enclosure_pdf(
 
     # ── Back-side LED/diode holes ─────────────────────────────────────────────
     led_re = re.compile(r"^(D|LED)\d", re.IGNORECASE)
-    for fp in board.GetFootprints():
-        if not led_re.match(fp.GetReference()):
+    for fp in board.get_footprints():
+        ref = fp.reference_field.text.value
+        if not led_re.match(ref):
             continue
-        if not fp.IsFlipped():
+        if fp.layer != BoardLayer.BL_B_Cu:  # not flipped to back side
             continue
         fp_id = get_fp_id(fp)
         cfg = fp_config.get(
             fp_id, {"hole_dia": 3.2, "offset_x": 0.0, "offset_y": 0.0, "label": "LED"}
         )
-        pos = fp.GetPosition()
         ex, ey = fp_to_enc(
-            pcbnew.ToMM(pos.x),
-            pcbnew.ToMM(pos.y),
+            fp.position.x / NM_PER_MM,
+            fp.position.y / NM_PER_MM,
             cfg["offset_x"],
             cfg["offset_y"],
         )
         label = cfg.get("label") or "LED"
         draw_hole(ex, ey, cfg["hole_dia"], label)
         _log(
-            f"    LED (back-side {fp.GetReference()}): enc ({ex:.1f}, {ey:.1f}) mm"
+            f"    LED (back-side {ref}): enc ({ex:.1f}, {ey:.1f}) mm"
             f"  \u00f8{cfg['hole_dia']} mm"
         )
 
@@ -244,12 +263,12 @@ def _find_top_anchor(board, fp_config: Dict) -> Optional[float]:
     we anchor on the topmost *hole* rather than the topmost footprint *origin*.
     """
     top_pcb_y: Optional[float] = None
-    for fp in board.GetFootprints():
+    for fp in board.get_footprints():
         fp_id = get_fp_id(fp)
         if fp_id not in fp_config:
             continue
         cfg = fp_config[fp_id]
-        effective_y = pcbnew.ToMM(fp.GetPosition().y) - cfg["offset_y"]
+        effective_y = fp.position.y / NM_PER_MM - cfg["offset_y"]
         if top_pcb_y is None or effective_y < top_pcb_y:
             top_pcb_y = effective_y
     return top_pcb_y

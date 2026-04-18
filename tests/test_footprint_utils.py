@@ -39,33 +39,41 @@ def test_friendly_type_unknown_no_fp_name():
     assert friendly_footprint_type("XY1", "") == "Component"
 
 
+def _make_field(name, value):
+    """Build a kipy-style Field mock."""
+    f = MagicMock()
+    f.name = name
+    f.text.value = value
+    return f
+
+
 def test_get_field_found():
-    field = MagicMock()
-    field.GetName.return_value = "Control"
-    field.GetText.return_value = "  Volume  "
     fp = MagicMock()
-    fp.GetFields.return_value = [field]
+    fp.texts_and_fields = [_make_field("Control", "  Volume  ")]
     assert get_field(fp, "Control") == "Volume"
+
+
+def test_get_field_found_case_insensitive():
+    fp = MagicMock()
+    fp.texts_and_fields = [_make_field("control", "Level")]
+    assert get_field(fp, "Control") == "Level"
 
 
 def test_get_field_missing():
     fp = MagicMock()
-    fp.GetFields.return_value = []
+    fp.texts_and_fields = []
     assert get_field(fp, "Control") == ""
 
 
 def test_get_field_wrong_name():
-    field = MagicMock()
-    field.GetName.return_value = "Datasheet"
-    field.GetText.return_value = "http://example.com"
     fp = MagicMock()
-    fp.GetFields.return_value = [field]
+    fp.texts_and_fields = [_make_field("Datasheet", "http://example.com")]
     assert get_field(fp, "Control") == ""
 
 
-def test_get_field_exception_in_field():
-    field = MagicMock()
-    field.GetName.side_effect = RuntimeError("boom")
+def test_get_field_non_field_item_skipped():
+    # BoardText items (no .name attribute) should be silently skipped.
+    item = MagicMock(spec=[])  # spec=[] → no attributes → getattr returns None
     fp = MagicMock()
-    fp.GetFields.return_value = [field]
+    fp.texts_and_fields = [item]
     assert get_field(fp, "Control") == ""

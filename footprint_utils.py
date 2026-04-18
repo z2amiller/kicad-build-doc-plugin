@@ -1,4 +1,5 @@
-"""Helpers for working with pcbnew footprint objects."""
+"""Helpers for working with kipy footprint objects."""
+from __future__ import annotations
 
 import re
 from typing import Dict, List, Tuple
@@ -6,18 +7,20 @@ from typing import Dict, List, Tuple
 
 def get_field(fp, name: str) -> str:
     """Return the text of a footprint field by name, or '' if absent."""
-    for field in fp.GetFields():
-        try:
-            if field.GetName() == name:
-                return field.GetText().strip()
-        except Exception:
-            pass
+    name_lower = name.lower()
+    for item in fp.texts_and_fields:
+        item_name = getattr(item, "name", None)
+        if item_name is not None and item_name.lower() == name_lower:
+            text = getattr(item, "text", None)
+            if text is not None:
+                return str(getattr(text, "value", "")).strip()
     return ""
 
 
 def get_fp_id(fp) -> str:
     """Return 'LibNickname:LibItemName' for a footprint."""
-    return "{}:{}".format(fp.GetFPID().GetLibNickname(), fp.GetFPID().GetLibItemName())
+    lib_id = fp.definition.id
+    return "{}:{}".format(lib_id.library, lib_id.name)
 
 
 def ref_sort_key(ref: str) -> Tuple[str, int]:
@@ -69,8 +72,8 @@ def extract_controls(board, external_ids: set) -> Dict[str, List]:
     internal: List[dict] = []
     seen: set = set()
 
-    for fp in board.GetFootprints():
-        ref = fp.GetReference()
+    for fp in board.get_footprints():
+        ref = fp.reference_field.text.value
         if ref.startswith("~") or ref in ("REF**", ""):
             continue
         if exclude_prefix.match(ref):
@@ -80,7 +83,7 @@ def extract_controls(board, external_ids: set) -> Dict[str, List]:
             continue
         seen.add(label)
 
-        entry = {"ref": ref, "label": label, "value": fp.GetValue()}
+        entry = {"ref": ref, "label": label, "value": fp.value_field.text.value}
         if get_fp_id(fp) in external_ids:
             external.append(entry)
         else:

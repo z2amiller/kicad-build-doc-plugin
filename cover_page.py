@@ -2,9 +2,10 @@
 
 import datetime
 import os
+import shutil
+import subprocess
 from typing import Callable, List, Optional
 
-import pcbnew
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
@@ -95,7 +96,7 @@ def build_cover_story(
         story.append(Spacer(1, 0.15 * inch))
 
     _log("Extracting controls…")
-    config = load_panel_config(board.GetFileName(), plugin_dir, _log)
+    config = load_panel_config(board.name, plugin_dir, _log)
     controls = extract_controls(board, set(config["footprints"].keys()))
     external = controls["external"]
     internal = controls["internal"]
@@ -147,78 +148,60 @@ def build_cover_story(
 
 
 def export_board_image(board, tmpdir: str, log: Optional[Callable] = None) -> str:
-    """Export Edge.Cuts + F.SilkS as SVG using pcbnew's in-process plot controller.
+    """Export Edge.Cuts + silkscreen layers as SVG via kicad-cli.
 
-    Custom fields (LCSC numbers etc.) are temporarily hidden before plotting so
-    they don't appear on the silkscreen layer.
+    Uses --page-size-mode 2 (board area only) so the output is already
+    cropped to the board outline with no page border.
     """
     _log = log or (lambda msg: None)
-    hidden = []
-    standard = {"Reference", "Value", "Footprint", "Datasheet"}
-    for fp in board.GetFootprints():
-        for field in fp.GetFields():
-            try:
-                if field.GetName() not in standard and field.IsVisible():
-                    field.SetVisible(False)
-                    hidden.append(field)
-            except Exception:
-                pass
 
-    try:
-        pctl = pcbnew.PLOT_CONTROLLER(board)
-        popt = pctl.GetPlotOptions()
-        popt.SetOutputDirectory(tmpdir)
-        popt.SetPlotFrameRef(False)
-        popt.SetAutoScale(False)
-        popt.SetScale(1)
-        popt.SetMirror(False)
-        popt.SetUseAuxOrigin(False)
-        popt.SetNegative(False)
-        popt.SetPlotReference(True)
-        popt.SetPlotValue(True)
-        try:
-            popt.SetDrillMarksType(pcbnew.DRILL_MARKS_FULL_DRILL_SHAPE)
-        except Exception:
-            pass
-        pctl.SetColorMode(True)
-        layers = [pcbnew.Edge_Cuts, pcbnew.F_Mask, pcbnew.F_Paste, pcbnew.F_SilkS]
-        pctl.OpenPlotfile("board_front", pcbnew.PLOT_FORMAT_SVG, "Board Front")
-        for layer in layers:
-            pctl.SetLayer(layer)
-            pctl.PlotLayer()
-        pctl.ClosePlot()
-    finally:
-        for field in hidden:
-            try:
-                field.SetVisible(True)
-            except Exception:
-                pass
+    board_path = board.name
+    if not board_path or not os.path.exists(board_path):
+        raise RuntimeError(f"Board file not found at '{board_path}' — save the board first.")
 
-    svg_path = next(
-        (os.path.join(tmpdir, f) for f in os.listdir(tmpdir) if f.endswith(".svg")),
+    cli = shutil.which("kicad-cli") or next(
+        (
+            c
+            for c in [
+                "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
+                "/usr/local/bin/kicad-cli",
+                "/usr/bin/kicad-cli",
+            ]
+            if os.path.exists(c)
+        ),
         None,
     )
-    if not svg_path:
-        raise RuntimeError("pcbnew plot controller ran but produced no SVG file.")
+    if not cli:
+        raise RuntimeError("kicad-cli not found — cannot export board image.")
 
-    try:
-        import xml.etree.ElementTree as ET
+    out_svg = os.path.join(tmpdir, "board_front.svg")
+    layers = "Edge.Cuts,F.Mask,F.Paste,F.SilkS"
 
-        margin = 2.0
-        bbox = board.GetBoardEdgesBoundingBox()
-        vx = pcbnew.ToMM(bbox.GetX()) - margin
-        vy = pcbnew.ToMM(bbox.GetY()) - margin
-        vw = pcbnew.ToMM(bbox.GetWidth()) + 2 * margin
-        vh = pcbnew.ToMM(bbox.GetHeight()) + 2 * margin
-        ET.register_namespace("", "http://www.w3.org/2000/svg")
-        tree = ET.parse(svg_path)
-        svg_el = tree.getroot()
-        svg_el.set("viewBox", f"{vx:.3f} {vy:.3f} {vw:.3f} {vh:.3f}")
-        svg_el.set("width", f"{vw:.3f}mm")
-        svg_el.set("height", f"{vh:.3f}mm")
-        tree.write(svg_path, xml_declaration=True, encoding="unicode")
-        _log(f"  SVG cropped to board area: {vw:.1f} x {vh:.1f} mm")
-    except Exception as e:
-        _log(f"  SVG crop failed (using uncropped): {e}")
+    env = os.environ.copy()
+    env["DYLD_FRAMEWORK_PATH"] = "/Applications/KiCad/KiCad.app/Contents/Frameworks"
+    env["DYLD_LIBRARY_PATH"] = "/Applications/KiCad/KiCad.app/Contents/Frameworks"
 
-    return svg_path
+    result = subprocess.run(
+        [
+            cli, "pcb", "export", "svg",
+            "--layers", layers,
+            "--page-size-mode", "2",
+            "--exclude-drawing-sheet",
+            "--mode-single",
+            "--output", out_svg,
+            board_path,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
+
+    if result.returncode != 0 or not os.path.exists(out_svg):
+        raise RuntimeError(
+            f"kicad-cli SVG export failed (exit {result.returncode}): "
+            f"{result.stderr.strip()[:300]}"
+        )
+
+    _log(f"  Board SVG exported: {out_svg}")
+    return out_svg

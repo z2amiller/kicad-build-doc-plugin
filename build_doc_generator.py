@@ -11,7 +11,6 @@ import os
 import tempfile
 from typing import Callable, Optional
 
-import pcbnew
 from pypdf import PdfReader
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -28,7 +27,7 @@ from schematic_export import export_schematic_pdf, stamp_schematic_footer
 class BuildDocGenerator:
     def __init__(
         self,
-        board: pcbnew.BOARD,
+        board,
         params: dict,
         log: Optional[Callable] = None,
     ):
@@ -94,7 +93,7 @@ class BuildDocGenerator:
 
         if has_enc:
             self._log("Generating enclosure drilling template…")
-            config = load_panel_config(self.board.GetFileName(), self._plugin_dir, self._log)
+            config = load_panel_config(self.board.name, self._plugin_dir, self._log)
             generate_enclosure_pdf(
                 board=self.board,
                 config=config,

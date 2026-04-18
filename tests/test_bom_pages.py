@@ -11,32 +11,29 @@ def _make_fp(
     excluded_pos=False,
     dnp=False,
 ):
-    """Build a minimal mock footprint."""
+    """Build a minimal kipy-style mock footprint."""
     fp = MagicMock()
-    fp.GetReference.return_value = ref
-    fp.GetValue.return_value = value
-    fp.IsExcludedFromBOM.return_value = excluded_bom
-    fp.IsExcludedFromPosFiles.return_value = excluded_pos
-    fp.IsDNP.return_value = dnp
+    fp.reference_field.text.value = ref
+    fp.value_field.text.value = value
+    fp.attributes.exclude_from_bill_of_materials = excluded_bom
+    fp.attributes.exclude_from_position_files = excluded_pos
+    fp.attributes.do_not_populate = dnp
 
-    # Fields: only populate Control if non-empty
     fields = []
     if control:
         f = MagicMock()
-        f.GetName.return_value = "Control"
-        f.GetText.return_value = control
+        f.name = "Control"
+        f.text.value = control
         fields.append(f)
-    fp.GetFields.return_value = fields
+    fp.texts_and_fields = fields
 
-    fp_id_mock = MagicMock()
-    fp_id_mock.GetLibItemName.return_value = MagicMock(__str__=lambda s: "Generic")
-    fp.GetFPID.return_value = fp_id_mock
+    fp.definition.id.name = "Generic"
     return fp
 
 
 def _make_board(fps):
     board = MagicMock()
-    board.GetFootprints.return_value = fps
+    board.get_footprints.return_value = fps
     return board
 
 

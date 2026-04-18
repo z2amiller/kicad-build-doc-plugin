@@ -1,0 +1,8 @@
+{
+    "pythonVersion": "3.9",
+    "pythonPlatform": "All",
+    "pythonPath": "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3",
+    "venvPath": "/Library/Frameworks/Python.framework/Versions/3.14",
+    "typeCheckingMode": "basic",
+    "reportMissingModuleSource": "none"
+}

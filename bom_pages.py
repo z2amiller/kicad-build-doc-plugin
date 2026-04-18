@@ -121,12 +121,12 @@ def collect_bom(board) -> List[Dict]:
 
     Controls (footprints with a Control field) are always included regardless of
     KiCad exclusion flags — they're user-populated parts.  Everything else respects
-    IsExcludedFromBOM, IsExcludedFromPosFiles, and IsDNP.  Controls sort after
-    regular parts, separated by a thin rule row.
+    exclude_from_bill_of_materials, exclude_from_position_files, and do_not_populate.
+    Controls sort after regular parts, separated by a thin rule row.
     """
     rows: List[Dict] = []
-    for fp in board.GetFootprints():
-        ref = fp.GetReference()
+    for fp in board.get_footprints():
+        ref = fp.reference_field.text.value
         if ref.startswith("~") or ref in ("REF**", ""):
             continue
 
@@ -134,14 +134,15 @@ def collect_bom(board) -> List[Dict]:
         location = control if control else ref
 
         if not control:
-            if fp.IsExcludedFromBOM() or fp.IsExcludedFromPosFiles() or fp.IsDNP():
+            attrs = fp.attributes
+            if attrs.exclude_from_bill_of_materials or attrs.exclude_from_position_files or attrs.do_not_populate:
                 continue
 
-        val = fp.GetValue()
+        val = fp.value_field.text.value
 
         desc = get_field(fp, "Description")
         if not desc:
-            fp_name = str(fp.GetFPID().GetLibItemName())
+            fp_name = fp.definition.id.name
             desc = friendly_footprint_type(ref, fp_name)
 
         notes = get_field(fp, "Datasheet")
