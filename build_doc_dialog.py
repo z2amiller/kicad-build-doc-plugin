@@ -75,10 +75,15 @@ class BuildDocDialog(wx.Dialog):
         bsizer.Add(self.chk_sch,   flag=wx.ALL, border=4)
         vbox.Add(bsizer, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
 
-        # ── Bulk description editor ───────────────────────────────
+        # ── Editor shortcuts ──────────────────────────────────────
+        editor_row = wx.BoxSizer(wx.HORIZONTAL)
         btn_edit = wx.Button(panel, label="Edit Component Descriptions…")
         btn_edit.Bind(wx.EVT_BUTTON, self.on_edit_descriptions)
-        vbox.Add(btn_edit, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
+        editor_row.Add(btn_edit, flag=wx.RIGHT, border=8)
+        btn_drills = wx.Button(panel, label="Edit Enclosure Drills…")
+        btn_drills.Bind(wx.EVT_BUTTON, self.on_edit_drills)
+        editor_row.Add(btn_drills)
+        vbox.Add(editor_row, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
 
         # ── Schematic path (optional override) ───────────────────
         sch_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -137,6 +142,13 @@ class BuildDocDialog(wx.Dialog):
     def on_edit_descriptions(self, event):
         from bulk_edit_dialog import BulkEditDialog
         dlg = BulkEditDialog(self, self.board)
+        dlg.ShowModal()
+        dlg.Destroy()
+
+    def on_edit_drills(self, event):
+        from drill_editor_dialog import DrillEditorDialog
+        plugin_dir = os.path.dirname(os.path.abspath(__file__))
+        dlg = DrillEditorDialog(self, self.board, plugin_dir)
         dlg.ShowModal()
         dlg.Destroy()
 
