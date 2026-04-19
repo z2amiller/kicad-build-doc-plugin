@@ -8,14 +8,21 @@ from typing import Callable, Dict, List, Optional
 
 
 # Interior face dimensions (mm) for standard Hammond/Tayda enclosures.
-# width = narrower dimension (left-right on front face),
-# height = taller dimension (top-bottom on front face).
+# width = left-right, height = top-bottom on the front face as oriented.
+# -R variants are rotated 90° CW: W/H swapped so the long axis is horizontal.
+# Tayda always orders in portrait (long axis vertical), so the generator applies
+# an inverse rotation to -R hole coordinates before writing the manifest.
 ENCLOSURE_PRESETS: Dict[str, tuple] = {
-    "125B":   (62.0,  119.5, 31.0),   # width, height, depth
-    "1590B":  (60.0,  112.0, 31.0),
-    "1590BB": (94.0,  119.5, 34.0),
-    "1590A":  (38.0,   92.0, 31.0),
-    "1590XX": (121.0, 145.0, 37.0),
+    "125B":     ( 62.0, 119.5, 31.0),   # width, height, depth
+    "125B-R":   (119.5,  62.0, 31.0),
+    "1590B":    ( 60.0, 112.0, 31.0),
+    "1590B-R":  (112.0,  60.0, 31.0),
+    "1590BB":   ( 94.0, 119.5, 34.0),
+    "1590BB-R": (119.5,  94.0, 34.0),
+    "1590A":    ( 38.0,  92.0, 31.0),
+    "1590A-R":  ( 92.0,  38.0, 31.0),
+    "1590XX":   (121.0, 145.0, 37.0),
+    "1590XX-R": (145.0, 121.0, 37.0),
 }
 
 # Default Side B (top face) hole layouts per enclosure preset.
@@ -54,7 +61,8 @@ class EnclosureConfig:
     width: float
     height: float
     depth: float = 35.0
-    preset: Optional[str] = None   # e.g. "125B"; None = custom dimensions
+    preset: Optional[str] = None   # e.g. "125B" or "1590XX-R"; None = custom
+    rotated: bool = False           # True for -R presets; Tayda coords are transformed
 
 
 @dataclass
@@ -121,6 +129,7 @@ def _parse_json_config(path: str) -> dict:
 
 def _enclosure_from_dict(d: dict) -> EnclosureConfig:
     preset = d.get("preset") or None
+    rotated = bool(preset and preset.endswith("-R"))
     if preset and preset in ENCLOSURE_PRESETS:
         w, h, dep = ENCLOSURE_PRESETS[preset]
         return EnclosureConfig(
@@ -128,12 +137,14 @@ def _enclosure_from_dict(d: dict) -> EnclosureConfig:
             height=float(d.get("height", h)),
             depth=float(d.get("depth", dep)),
             preset=preset,
+            rotated=rotated,
         )
     return EnclosureConfig(
         width=float(d["width"]),
         height=float(d["height"]),
         depth=float(d.get("depth", 35.0)),
         preset=None,
+        rotated=False,
     )
 
 

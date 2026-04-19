@@ -10,6 +10,7 @@ from panel_config import (
 )
 
 
+
 # ── load_panel_config (JSON) ──────────────────────────────────────────────────
 
 def _write_config(path, data):
@@ -80,6 +81,41 @@ def test_preset_table_has_expected_sizes():
     assert "1590BB" in ENCLOSURE_PRESETS
     assert "1590A" in ENCLOSURE_PRESETS
     assert "1590XX" in ENCLOSURE_PRESETS
+
+
+def test_rotated_presets_swap_width_height():
+    for name, (w, h, d) in ENCLOSURE_PRESETS.items():
+        if name.endswith("-R"):
+            base = name[:-2]
+            assert base in ENCLOSURE_PRESETS
+            bw, bh, bd = ENCLOSURE_PRESETS[base]
+            assert w == bh and h == bw and d == bd
+
+
+def test_rotated_preset_sets_rotated_flag(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"preset": "1590XX-R"},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert result.enclosure.rotated is True
+    assert result.enclosure.width == 145.0
+    assert result.enclosure.height == 121.0
+
+
+def test_non_rotated_preset_rotated_flag_false(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"preset": "1590XX"},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert result.enclosure.rotated is False
+
+
+def test_custom_enclosure_rotated_flag_false(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"width": 80, "height": 120},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert result.enclosure.rotated is False
 
 
 def test_preset_resolves_dimensions(tmp_path):
