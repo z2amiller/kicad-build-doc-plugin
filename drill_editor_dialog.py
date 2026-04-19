@@ -159,7 +159,6 @@ class DrillEditorDialog(wx.Dialog):
 
         # ── Right pane: WebView preview ────────────────────────────
         if self._use_webview:
-            import wx.html2
             self._webview = wx.html2.WebView.New(panel, size=(340, -1))
             root.Add(self._webview, proportion=0, flag=wx.EXPAND | wx.RIGHT | wx.TOP | wx.BOTTOM, border=8)
             self._btn_preview.SetLabel("Refresh Preview")
