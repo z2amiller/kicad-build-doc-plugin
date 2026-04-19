@@ -26,6 +26,7 @@ class GeneratorParams:
     include_cover: bool = False
     include_bom: bool = False
     include_enclosure: bool = False
+    include_tayda: bool = False
     include_sch: bool = False
     sch_path: str = ""
     blurb: str = ""
@@ -39,6 +40,7 @@ from footprint_utils import get_board_path
 from panel_config import load_panel_config, snapshot_global_to_project
 from pdf_utils import MARGIN, make_page_footer, merge_pdfs
 from schematic_export import export_schematic_pdf, stamp_schematic_footer
+from tayda_manifest import generate_tayda_manifest_pdf
 
 
 class BuildDocGenerator:
@@ -65,6 +67,7 @@ class BuildDocGenerator:
         self.enc_holes = []
         has_body = self.params.include_cover or self.params.include_bom
         has_enc = self.params.include_enclosure
+        has_tayda = self.params.include_tayda and has_enc
         has_sch = self.params.include_sch
 
         # ── Export board image PDF (independent of page count) ────────────────
@@ -84,6 +87,7 @@ class BuildDocGenerator:
             body_count = len(PdfReader(body_pdf).pages)
 
         enc_count = 1 if has_enc else 0
+        tayda_count = 1 if has_tayda else 0
 
         raw_sch = None
         sch_count = 0
@@ -95,8 +99,8 @@ class BuildDocGenerator:
             else:
                 self._log("  Schematic export skipped.")
 
-        # Page order: body (cover + BOM) → schematic → enclosure template
-        self.total_pages = body_count + sch_count + enc_count
+        # Page order: body (cover + BOM) → schematic → enclosure template → tayda manifest
+        self.total_pages = body_count + sch_count + enc_count + tayda_count
 
         # ── Pass 2: re-render body with correct total for footer ───────────────
         parts = []
@@ -144,6 +148,20 @@ class BuildDocGenerator:
                 log=self._log,
             )
             parts.append(enc_pdf)
+
+        if has_tayda:
+            self._log("Generating Tayda drill manifest…")
+            tayda_pdf = os.path.join(self.tmpdir, "tayda.pdf")
+            generate_tayda_manifest_pdf(
+                holes=self.enc_holes,
+                project_name=self.project_name,
+                author=self.author,
+                page_num=body_count + sch_count + enc_count + 1,
+                total_pages=self.total_pages,
+                out_path=tayda_pdf,
+                log=self._log,
+            )
+            parts.append(tayda_pdf)
 
         if not parts:
             raise RuntimeError("No pages were generated – enable at least one section.")

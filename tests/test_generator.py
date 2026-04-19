@@ -46,9 +46,20 @@ def _make_params(tmp_path, **flags):
         include_cover=flags.get("include_cover", False),
         include_bom=flags.get("include_bom", False),
         include_enclosure=flags.get("include_enclosure", False),
+        include_tayda=flags.get("include_tayda", False),
         include_sch=flags.get("include_sch", False),
     )
 
+
+
+def _fake_tayda_pdf(holes, project_name, author, page_num, total_pages, out_path, log=None):
+    """Write a minimal single-page PDF for the Tayda manifest."""
+    from reportlab.pdfgen import canvas as rl_canvas
+    c = rl_canvas.Canvas(out_path)
+    c.drawString(50, 750, "Tayda placeholder")
+    c.showPage()
+    c.save()
+    return out_path
 
 
 def _fake_enclosure_pdf(board, config, project_name, author,
@@ -68,6 +79,10 @@ def _fake_enclosure_pdf(board, config, project_name, author,
     ({"include_cover": True, "include_bom": True}, 2),
     ({"include_cover": True, "include_bom": True, "include_enclosure": True}, 3),
     ({"include_enclosure": True}, 1),
+    ({"include_enclosure": True, "include_tayda": True}, 2),
+    ({"include_cover": True, "include_enclosure": True, "include_tayda": True}, 3),
+    # include_tayda without include_enclosure produces no tayda page
+    ({"include_cover": True, "include_tayda": True}, 1),
 ])
 def test_generate_page_count(flags, expected_pages, tmp_path):
     board = _make_board(tmp_path)
@@ -76,6 +91,7 @@ def test_generate_page_count(flags, expected_pages, tmp_path):
     with patch("board_image.export_board_pdf", return_value=None), \
          patch("build_doc_generator.board_size_mm", return_value=None), \
          patch("build_doc_generator.generate_enclosure_pdf", side_effect=_fake_enclosure_pdf), \
+         patch("build_doc_generator.generate_tayda_manifest_pdf", side_effect=_fake_tayda_pdf), \
          patch("build_doc_generator.load_panel_config", return_value=PanelConfig(enclosure=EnclosureConfig(width=62, height=117), footprints={}, fixed_holes=[])):
         gen = BuildDocGenerator(board, params)
         gen.generate()
