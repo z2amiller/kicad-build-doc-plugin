@@ -192,15 +192,7 @@ class _EnclosureRenderer:
             if fp_id not in fp_config:
                 continue
             cfg = fp_config[fp_id]
-            ref_x = fp.position.x / NM_PER_MM
-            ref_y = fp.position.y / NM_PER_MM
-            if cfg.use_pad_centroid:
-                try:
-                    dx, dy = _pad_centroid_offset_mm(fp)
-                    ref_x += dx
-                    ref_y += dy
-                except Exception:
-                    pass
+            ref_x, ref_y = _fp_pcb_pos_mm(fp, cfg)
             rx, ry = self.fp_to_enc(ref_x, ref_y)
             ex = rx + cfg.offset_x
             ey = ry + cfg.offset_y
@@ -529,15 +521,7 @@ def get_computed_holes(
             if fp_id not in fp_config:
                 continue
             cfg = fp_config[fp_id]
-            ref_x = fp.position.x / NM_PER_MM
-            ref_y = fp.position.y / NM_PER_MM
-            if cfg.use_pad_centroid:
-                try:
-                    dx, dy = _pad_centroid_offset_mm(fp)
-                    ref_x += dx
-                    ref_y += dy
-                except Exception:
-                    pass
+            ref_x, ref_y = _fp_pcb_pos_mm(fp, cfg)
             rx, ry = r.fp_to_enc(ref_x, ref_y)
             ex, ey = rx + cfg.offset_x, ry + cfg.offset_y
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
@@ -561,6 +545,20 @@ def get_computed_holes(
     except Exception as exc:
         _log(f"  get_computed_holes failed: {exc}")
         return []
+
+
+def _fp_pcb_pos_mm(fp, cfg) -> Tuple[float, float]:
+    """Return PCB (x, y) in mm for a footprint, with pad centroid applied if configured."""
+    x = fp.position.x / NM_PER_MM
+    y = fp.position.y / NM_PER_MM
+    if cfg.use_pad_centroid:
+        try:
+            dx, dy = _pad_centroid_offset_mm(fp)
+            x += dx
+            y += dy
+        except Exception:
+            pass
+    return x, y
 
 
 def _pad_centroid_offset_mm(fp) -> tuple:
