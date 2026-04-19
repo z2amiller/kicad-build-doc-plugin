@@ -141,7 +141,7 @@ The plugin ships with a global default `panel_config.json` covering common footp
 }
 ```
 
-**`enclosure`** — physical size of the enclosure face in mm. `depth` defaults to 35 if omitted.
+**`enclosure`** — physical size of the enclosure face in mm. `depth` defaults to 35 if omitted. You can also set a `preset` name (see below) and the dimensions will be filled in automatically.
 
 **`footprints`** — keyed by the full KiCad footprint ID (`Library:Name`). Each entry has:
 - `hole_dia` — drill diameter in mm
@@ -149,6 +149,8 @@ The plugin ships with a global default `panel_config.json` covering common footp
 - `label` — optional; if omitted, the footprint's `Control` field is used, then the reference
 
 **`fixed_holes`** — holes at specific enclosure coordinates, not derived from PCB footprint positions. Coordinates are in mm from the enclosure centre; positive Y is up, positive X is right.
+
+**`side_b`** — holes on the top face of the enclosure (jacks, DC power). Same coordinate format as `fixed_holes`. See [Enclosure presets](#enclosure-presets) below — presets include sensible default layouts for the top face that you can load in the drill editor.
 
 ### Merge behaviour
 
@@ -185,6 +187,50 @@ The `offset_x` and `offset_y` values are applied **after** this coordinate trans
 ### Autodetection: Back-panel LEDs
 
 LEDs mounted on the **back copper layer** (B.Cu) are treated as panel indicators and automatically get a hole in the drilling template — no `panel_config.json` entry required. The default hole diameter is 3.2 mm. To override the size for a specific LED footprint, add it to the `footprints` section.
+
+---
+
+### Enclosure presets
+
+The plugin ships with built-in presets for common Hammond/Tayda enclosures. Selecting a preset fills in the enclosure dimensions and provides standard top-face (Side B) hole layouts for jacks and DC power.
+
+| Preset | Width × Height (mm) | Notes |
+|--------|----------------------|-------|
+| `125B` | 62 × 119.5 | Most common stompbox size |
+| `125B-R` | 119.5 × 62 | 125B rotated 90° (landscape on top) |
+| `1590B` | 60 × 112 | Slightly smaller than 125B |
+| `1590B-R` | 112 × 60 | |
+| `1590BB` | 94 × 119.5 | Wider; good for multi-effect builds |
+| `1590BB-R` | 119.5 × 94 | |
+| `1590XX` | 121 × 145 | Large format |
+| `1590XX-R` | 145 × 121 | |
+
+To use a preset, open the **Edit Enclosure Drills** dialog (the pencil button next to the Enclosure Template checkbox) and select from the **Size** dropdown. The width, height, and depth fields will be filled in automatically.
+
+#### Rotated (`-R`) presets
+
+Rotated variants represent enclosures oriented with the long axis running left-to-right. The drilling template is rendered in landscape orientation to match, but the coordinates sent to Tayda are automatically converted to Tayda's portrait coordinate system (Tayda always publishes dimensions long-axis-vertical, labelled **Side C** for the left face).
+
+#### Top face (Side B) hole layouts
+
+Each non-rotated preset includes one or more named hole layouts for the top face — typically a standard "Input + Output + DC" arrangement. In the **Edit Enclosure Drills** dialog:
+
+1. Select an enclosure preset from the **Size** dropdown.
+2. The **Top face (Side B)** dropdown shows the available layouts for that preset.
+3. Click **Apply Layout** to load the holes (you'll be asked to confirm, since this replaces any existing top-face holes).
+
+The resulting holes appear in the read-only Side B list at the bottom of the dialog and are saved to your project's `panel_config.json` under the `side_b` key when you click **Apply**.
+
+> **Note:** Top-face hole coordinates in the built-in presets are reasonable approximations based on the 125B as a reference. Verify against your specific enclosure before drilling — Tayda's published drawings are the authoritative source.
+
+#### Tayda drill manifest
+
+If you use [Tayda Electronics](https://www.taydaelectronics.com) custom drilling, enable the **Tayda Drill Manifest** checkbox in the main dialog. This generates an additional PDF page — a table of Side / Diameter / X / Y suitable for pasting into Tayda's custom drill order form.
+
+Coordinates are in mm from the centre of each face, rounded to one decimal place:
+- **Side A** — front face (panel controls)
+- **Side B** — top face (jacks, DC) — unrotated enclosures
+- **Side C** — left face (jacks, DC) — rotated (`-R`) enclosures; Tayda's coordinate system for the jack side
 
 ---
 
