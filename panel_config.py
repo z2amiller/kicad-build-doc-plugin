@@ -7,53 +7,22 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 
-# Interior face dimensions (mm) for standard Hammond/Tayda enclosures.
-# width = left-right, height = top-bottom on the front face as oriented.
-# -R variants are rotated 90° CW: W/H swapped so the long axis is horizontal.
-# Tayda always orders in portrait (long axis vertical), so the generator applies
-# an inverse rotation to -R hole coordinates before writing the manifest.
-ENCLOSURE_PRESETS: Dict[str, tuple] = {
-    "125B":     ( 62.0, 119.5, 31.0),   # width, height, depth
-    "125B-R":   (119.5,  62.0, 31.0),
-    "1590B":    ( 60.0, 112.0, 31.0),
-    "1590B-R":  (112.0,  60.0, 31.0),
-    "1590BB":   ( 94.0, 119.5, 34.0),
-    "1590BB-R": (119.5,  94.0, 34.0),
-    "1590A":    ( 38.0,  92.0, 31.0),
-    "1590A-R":  ( 92.0,  38.0, 31.0),
-    "1590XX":   (121.0, 145.0, 37.0),
-    "1590XX-R": (145.0, 121.0, 37.0),
-}
+_PRESETS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "enclosure_presets.json")
 
-# Default Side B (top face) hole layouts per enclosure preset.
-# Holes are in mm from the top-face centre; X positive = right, Y positive = front.
-# Diameters: 9.53 mm = 3/8" (standard 1/4" jack), 12.0 mm = DC barrel jack (5.5mm OD).
-_SIDE_B_DEFAULTS: Dict[str, List[dict]] = {
-    "125B": [
-        {"label": "Input",  "diameter_mm": 9.53, "x_mm": -15.0, "y_mm": 0.0},
-        {"label": "Output", "diameter_mm": 9.53, "x_mm":  15.0, "y_mm": 0.0},
-        {"label": "DC",     "diameter_mm": 12.0, "x_mm":   0.0, "y_mm": 0.0},
-    ],
-    "1590B": [
-        {"label": "Input",  "diameter_mm": 9.53, "x_mm": -12.0, "y_mm": 0.0},
-        {"label": "Output", "diameter_mm": 9.53, "x_mm":  12.0, "y_mm": 0.0},
-        {"label": "DC",     "diameter_mm": 12.0, "x_mm":   0.0, "y_mm": 0.0},
-    ],
-    "1590BB": [
-        {"label": "Input",  "diameter_mm": 9.53, "x_mm": -20.0, "y_mm": 0.0},
-        {"label": "Output", "diameter_mm": 9.53, "x_mm":  20.0, "y_mm": 0.0},
-        {"label": "DC",     "diameter_mm": 12.0, "x_mm":   0.0, "y_mm": 0.0},
-    ],
-    "1590A": [
-        {"label": "Input",  "diameter_mm": 9.53, "x_mm": -8.0, "y_mm": 0.0},
-        {"label": "Output", "diameter_mm": 9.53, "x_mm":  8.0, "y_mm": 0.0},
-    ],
-    "1590XX": [
-        {"label": "Input",  "diameter_mm": 9.53, "x_mm": -25.0, "y_mm": 0.0},
-        {"label": "Output", "diameter_mm": 9.53, "x_mm":  25.0, "y_mm": 0.0},
-        {"label": "DC",     "diameter_mm": 12.0, "x_mm":   0.0, "y_mm": 0.0},
-    ],
-}
+
+def _load_enclosure_presets() -> Dict[str, dict]:
+    try:
+        with open(_PRESETS_FILE) as fh:
+            data = json.load(fh)
+        return {k: v for k, v in data.items() if not k.startswith("_")}
+    except FileNotFoundError:
+        return {}
+
+
+# Enclosure preset definitions loaded from enclosure_presets.json.
+# Each entry: {"width": float, "height": float, "depth": float,
+#              "rotated": bool, "side_b_defaults": [...]}
+ENCLOSURE_PRESETS: Dict[str, dict] = _load_enclosure_presets()
 
 
 @dataclass
@@ -129,15 +98,14 @@ def _parse_json_config(path: str) -> dict:
 
 def _enclosure_from_dict(d: dict) -> EnclosureConfig:
     preset = d.get("preset") or None
-    rotated = bool(preset and preset.endswith("-R"))
     if preset and preset in ENCLOSURE_PRESETS:
-        w, h, dep = ENCLOSURE_PRESETS[preset]
+        pdata = ENCLOSURE_PRESETS[preset]
         return EnclosureConfig(
-            width=float(d.get("width", w)),
-            height=float(d.get("height", h)),
-            depth=float(d.get("depth", dep)),
+            width=float(d.get("width", pdata["width"])),
+            height=float(d.get("height", pdata["height"])),
+            depth=float(d.get("depth", pdata["depth"])),
             preset=preset,
-            rotated=rotated,
+            rotated=bool(pdata.get("rotated", False)),
         )
     return EnclosureConfig(
         width=float(d["width"]),
@@ -297,8 +265,9 @@ def load_panel_config(
 
     if "side_b" in merged:
         side_b: List[SideBHole] = [_side_b_hole_from_dict(h) for h in merged["side_b"]]
-    elif enclosure.preset and enclosure.preset in _SIDE_B_DEFAULTS:
-        side_b = [_side_b_hole_from_dict(h) for h in _SIDE_B_DEFAULTS[enclosure.preset]]
+    elif enclosure.preset and enclosure.preset in ENCLOSURE_PRESETS:
+        defaults = ENCLOSURE_PRESETS[enclosure.preset].get("side_b_defaults", [])
+        side_b = [_side_b_hole_from_dict(h) for h in defaults]
     else:
         side_b = []
 

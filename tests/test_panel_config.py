@@ -2,13 +2,11 @@ import json
 
 from panel_config import (
     ENCLOSURE_PRESETS,
-    _SIDE_B_DEFAULTS,
     load_blurb,
     load_copyright,
     load_panel_config,
     load_text_file,
 )
-
 
 
 # ── load_panel_config (JSON) ──────────────────────────────────────────────────
@@ -83,13 +81,12 @@ def test_preset_table_has_expected_sizes():
     assert "1590XX" in ENCLOSURE_PRESETS
 
 
-def test_rotated_presets_swap_width_height():
-    for name, (w, h, d) in ENCLOSURE_PRESETS.items():
+def test_rotated_presets_have_rotated_true():
+    for name, pdata in ENCLOSURE_PRESETS.items():
         if name.endswith("-R"):
-            base = name[:-2]
-            assert base in ENCLOSURE_PRESETS
-            bw, bh, bd = ENCLOSURE_PRESETS[base]
-            assert w == bh and h == bw and d == bd
+            assert pdata["rotated"] is True, f"{name} should have rotated=true"
+        else:
+            assert pdata["rotated"] is False, f"{name} should have rotated=false"
 
 
 def test_rotated_preset_sets_rotated_flag(tmp_path):
@@ -123,10 +120,10 @@ def test_preset_resolves_dimensions(tmp_path):
         "enclosure": {"preset": "1590B"},
     })
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
-    w, h, d = ENCLOSURE_PRESETS["1590B"]
-    assert result.enclosure.width == w
-    assert result.enclosure.height == h
-    assert result.enclosure.depth == d
+    pdata = ENCLOSURE_PRESETS["1590B"]
+    assert result.enclosure.width == pdata["width"]
+    assert result.enclosure.height == pdata["height"]
+    assert result.enclosure.depth == pdata["depth"]
     assert result.enclosure.preset == "1590B"
 
 
@@ -135,9 +132,9 @@ def test_preset_allows_dimension_override(tmp_path):
         "enclosure": {"preset": "125B", "depth": 40.0},
     })
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
-    w, h, _ = ENCLOSURE_PRESETS["125B"]
-    assert result.enclosure.width == w
-    assert result.enclosure.height == h
+    pdata = ENCLOSURE_PRESETS["125B"]
+    assert result.enclosure.width == pdata["width"]
+    assert result.enclosure.height == pdata["height"]
     assert result.enclosure.depth == 40.0
 
 
@@ -359,7 +356,7 @@ def test_side_b_preset_provides_defaults(tmp_path):
         "enclosure": {"preset": "125B"},
     })
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
-    assert len(result.side_b) == len(_SIDE_B_DEFAULTS["125B"])
+    assert len(result.side_b) == len(ENCLOSURE_PRESETS["125B"]["side_b_defaults"])
     labels = [h.label for h in result.side_b]
     assert "Input" in labels
     assert "Output" in labels

@@ -236,11 +236,11 @@ class DrillEditorDialog(wx.Dialog):
         preset = _PRESET_CHOICES[self._cho_preset.GetSelection()]
         if preset == "Custom" or preset not in ENCLOSURE_PRESETS:
             return
-        w, h, d = ENCLOSURE_PRESETS[preset]
+        pdata = ENCLOSURE_PRESETS[preset]
         self._updating = True
-        self._txt_enc_w.SetValue(f"{w:.1f}")
-        self._txt_enc_h.SetValue(f"{h:.1f}")
-        self._txt_enc_d.SetValue(f"{d:.1f}")
+        self._txt_enc_w.SetValue(f"{pdata['width']:.1f}")
+        self._txt_enc_h.SetValue(f"{pdata['height']:.1f}")
+        self._txt_enc_d.SetValue(f"{pdata['depth']:.1f}")
         self._updating = False
         if self._use_webview:
             self._on_preview(None)
