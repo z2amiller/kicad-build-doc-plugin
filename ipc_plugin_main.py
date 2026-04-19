@@ -9,11 +9,43 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import tempfile
 import time
 
 logger = logging.getLogger(__name__)
 
+_LOCK_FILE = os.path.join(tempfile.gettempdir(), "kicad-builddoc.lock")
 _WX_APP = None
+
+
+def _acquire_instance_lock() -> bool:
+    """Return True if this is the only running instance.
+
+    Uses a PID file. Stale locks (dead PID) are silently replaced.
+    """
+    if os.path.exists(_LOCK_FILE):
+        try:
+            with open(_LOCK_FILE) as fh:
+                pid = int(fh.read().strip())
+            os.kill(pid, 0)   # signal 0 = existence check, no signal sent
+            return False       # process alive — another instance is running
+        except (ValueError, ProcessLookupError):
+            pass               # stale lock: bad PID or process gone
+        except PermissionError:
+            return False       # process alive but owned by another user
+    try:
+        with open(_LOCK_FILE, "w") as fh:
+            fh.write(str(os.getpid()))
+    except OSError:
+        pass   # can't write lock; don't block the user
+    return True
+
+
+def _release_instance_lock() -> None:
+    try:
+        os.unlink(_LOCK_FILE)
+    except OSError:
+        pass
 
 
 def _ensure_wx_app():
@@ -79,6 +111,16 @@ def main() -> int:
     if app is None:
         return 1
 
+    if not _acquire_instance_lock():
+        import wx
+        wx.MessageBox(
+            "Build Document Generator is already running.\n"
+            "Close the existing window before opening a new one.",
+            "Already Running",
+            wx.OK | wx.ICON_INFORMATION,
+        )
+        return 0
+
     try:
         from build_doc_dialog import BuildDocDialog
         dlg = BuildDocDialog(None, board)
@@ -87,6 +129,8 @@ def main() -> int:
     except Exception:
         logger.exception("Dialog error")
         return 1
+    finally:
+        _release_instance_lock()
 
     if created_app:
         app.MainLoop()
