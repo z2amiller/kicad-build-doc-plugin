@@ -63,6 +63,7 @@ class FootprintRulesDialog(wx.Dialog):
         self._preview_path: Optional[str] = None
 
         self._use_webview = self._check_webview()
+        self._preview_timer: Optional[wx.Timer] = None
         self._load_rules()
         self._scan_candidates()
         self._build_ui()
@@ -349,11 +350,15 @@ class FootprintRulesDialog(wx.Dialog):
 
     def _generate_preview_pdf(self, fp_id: str, cfg: FootprintHoleConfig) -> Optional[str]:
         from enclosure_template import generate_enclosure_pdf
-        full = load_panel_config(self._board_path or "", self._plugin_dir)
         from panel_config import PanelConfig
+        full = load_panel_config(self._board_path or "", self._plugin_dir)
+        # Merge all existing rules + the footprint being previewed so the user
+        # can see it in context with the other controls.
+        merged_fps = dict(self._rules)
+        merged_fps[fp_id] = cfg
         preview_cfg = PanelConfig(
             enclosure=full.enclosure,
-            footprints={fp_id: cfg},
+            footprints=merged_fps,
             fixed_holes=full.fixed_holes,
             side_b=full.side_b,
         )
@@ -369,6 +374,7 @@ class FootprintRulesDialog(wx.Dialog):
                 page_num=1,
                 out_path=tf.name,
                 face_only=True,
+                highlight_fp_ids={fp_id},
             )
             return tf.name
         except Exception as exc:
@@ -442,6 +448,11 @@ class FootprintRulesDialog(wx.Dialog):
         if self._sel_rule is not None:
             self._rules[self._rule_keys[self._sel_rule]] = cfg
             self._update_rule_row(self._sel_rule)
+        # Debounce: refresh preview 350ms after the last edit
+        if self._use_webview:
+            if self._preview_timer is not None:
+                self._preview_timer.Stop()
+            self._preview_timer = wx.CallLater(350, self._on_preview, None)
 
     def _on_add_rule(self, event: Any) -> None:
         if self._sel_candidate is None:

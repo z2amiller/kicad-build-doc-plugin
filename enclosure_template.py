@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 from kipy.board import BoardLayer
 from reportlab.lib.pagesizes import letter
@@ -111,7 +111,8 @@ class _EnclosureRenderer:
 
     # ── Drawing primitives ────────────────────────────────────────────────────
 
-    def draw_hole(self, ex: float, ey: float, dia: float, label: str) -> None:
+    def draw_hole(self, ex: float, ey: float, dia: float, label: str,
+                  color: Tuple[float, float, float] = (0, 0, 0)) -> None:
         """Draw a circle + crosshairs + labels at enclosure position (ex, ey)."""
         self.holes.append(TaydaHole(side="A", diameter_mm=dia, x_mm=ex, y_mm=ey, label=label))
         c = self.c
@@ -119,13 +120,13 @@ class _EnclosureRenderer:
         hx, hy = self.to_pdf(ex, ey)
         r = (dia / 2) * smm
         cross = min(r + 1.5 * smm, 3.5 * smm)
-        c.setStrokeColorRGB(0, 0, 0)
+        c.setStrokeColorRGB(*color)
         c.setLineWidth(0.4)
         c.circle(hx, hy, r, stroke=1, fill=0)
         c.setLineWidth(0.25)
         c.line(hx - cross, hy, hx + cross, hy)
         c.line(hx, hy - cross, hx, hy + cross)
-        c.setFillColorRGB(0, 0, 0)
+        c.setFillColorRGB(*color)
         c.setFont("Helvetica", 5)
         c.drawCentredString(hx, hy + r + 1.5 * smm, label)
         c.setFont("Helvetica", 4)
@@ -185,7 +186,8 @@ class _EnclosureRenderer:
 
     # ── Hole groups ───────────────────────────────────────────────────────────
 
-    def draw_footprint_holes(self, board, fp_config: Dict, log) -> None:
+    def draw_footprint_holes(self, board, fp_config: Dict, log,
+                              highlight_fp_ids: Optional[Set[str]] = None) -> None:
         """Iterate fp_config footprints and draw their holes."""
         for fp in safe_get_footprints(board, log):
             fp_id = get_fp_id(fp)
@@ -197,7 +199,8 @@ class _EnclosureRenderer:
             ex = rx + cfg.offset_x
             ey = ry + cfg.offset_y
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
-            self.draw_hole(ex, ey, cfg.hole_dia, label)
+            color = (0.8, 0.0, 0.0) if (highlight_fp_ids and fp_id in highlight_fp_ids) else (0, 0, 0)
+            self.draw_hole(ex, ey, cfg.hole_dia, label, color=color)
             log(
                 f"    {label}: ref ({rx:.2f}, {ry:.2f})"
                 f"  offset ({cfg.offset_x:+.1f}, {cfg.offset_y:+.1f})"
@@ -386,6 +389,7 @@ def generate_enclosure_pdf(
     out_path: str,
     log: Optional[Callable] = None,
     face_only: bool = False,
+    highlight_fp_ids: Optional[Set[str]] = None,
 ) -> List[TaydaHole]:
     """Render a 1:1 drilling template on a letter-size page.
 
@@ -467,7 +471,7 @@ def generate_enclosure_pdf(
         renderer.draw_outline()
         renderer.draw_fold_lines()
         renderer.draw_centre_lines()
-    renderer.draw_footprint_holes(board, fp_config, _log)
+    renderer.draw_footprint_holes(board, fp_config, _log, highlight_fp_ids=highlight_fp_ids)
     renderer.draw_led_holes(board, fp_config, _log)
     renderer.draw_fixed_holes(fixed_holes, _log)
     if not face_only:
