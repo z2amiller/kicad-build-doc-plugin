@@ -301,7 +301,7 @@ class _EnclosureRenderer:
     # ── Annotation ────────────────────────────────────────────────────────────
 
     def draw_title_block(
-        self, project_name: str, enc_w: float, enc_h: float
+        self, project_name: str, enc_w: float, enc_h: float, preset: Optional[str] = None
     ) -> None:
         """Draw title + scale notice + 'PRINT AT 100%'."""
         c = self.c
@@ -316,8 +316,9 @@ class _EnclosureRenderer:
         )
         c.setFont("Helvetica", 8)
         c.setFillColorRGB(0.35, 0.35, 0.35)
+        size_label = f"{preset} ({enc_w:.0f}\u00d7{enc_h:.0f} mm)" if preset else f"{enc_w:.0f} \u00d7 {enc_h:.0f} mm"
         c.drawCentredString(
-            ox, title_y - 5 * MM, f"{enc_w:.0f} \u00d7 {enc_h:.0f} mm enclosure"
+            ox, title_y - 5 * MM, f"{size_label} enclosure"
         )
 
         notice_y = fb - td - 7 * MM
@@ -479,7 +480,7 @@ def generate_enclosure_pdf(
     if not face_only:
         renderer.draw_side_b_holes(config.side_b, _log)
     if not face_only:
-        renderer.draw_title_block(project_name, enc_w, enc_h)
+        renderer.draw_title_block(project_name, enc_w, enc_h, enc.preset)
         renderer.draw_scale_bar()
         renderer.draw_footer(project_name, author, page_num, total_pages)
 

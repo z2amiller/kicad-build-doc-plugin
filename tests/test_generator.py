@@ -52,7 +52,7 @@ def _make_params(tmp_path, **flags):
 
 
 
-def _fake_tayda_pdf(holes, project_name, author, page_num, total_pages, out_path, log=None):
+def _fake_tayda_pdf(holes, project_name, author, page_num, total_pages, out_path, log=None, enclosure_label=None):
     """Write a minimal single-page PDF for the Tayda manifest."""
     from reportlab.pdfgen import canvas as rl_canvas
     c = rl_canvas.Canvas(out_path)

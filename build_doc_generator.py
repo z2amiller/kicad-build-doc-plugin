@@ -132,11 +132,18 @@ class BuildDocGenerator:
             )
             parts.append(stamped)
 
+        enc_label: Optional[str] = None
         if has_enc:
             self._log("Generating enclosure drilling template…")
             board_path = get_board_path(self.board)
             snapshot_global_to_project(board_path, self._plugin_dir, self._log)
             config = load_panel_config(board_path, self._plugin_dir, self._log)
+            enc = config.enclosure
+            enc_label = (
+                f"{enc.preset} ({enc.width:.0f}\u00d7{enc.height:.0f} mm)"
+                if enc.preset
+                else f"{enc.width:.0f}\u00d7{enc.height:.0f} mm"
+            )
             self.enc_holes = generate_enclosure_pdf(
                 board=self.board,
                 config=config,
@@ -160,6 +167,7 @@ class BuildDocGenerator:
                 total_pages=self.total_pages,
                 out_path=tayda_pdf,
                 log=self._log,
+                enclosure_label=enc_label,
             )
             parts.append(tayda_pdf)
 

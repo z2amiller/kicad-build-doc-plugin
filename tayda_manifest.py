@@ -32,6 +32,7 @@ def generate_tayda_manifest_pdf(
     total_pages: int,
     out_path: str,
     log: Optional[Callable] = None,
+    enclosure_label: Optional[str] = None,
 ) -> str:
     """Render a Tayda-compatible drill table as a single PDF page.
 
@@ -61,9 +62,12 @@ def generate_tayda_manifest_pdf(
             ),
         )
     )
+    sub_text = "Tayda Drill Manifest"
+    if enclosure_label:
+        sub_text += f"  \u2014  {enclosure_label}"
     story.append(
         Paragraph(
-            "Tayda Drill Manifest",
+            sub_text,
             ParagraphStyle(
                 "ManifestSub",
                 fontSize=13,
@@ -75,8 +79,9 @@ def generate_tayda_manifest_pdf(
     )
     story.append(
         Paragraph(
-            "X/Y are mm from the centre of the face. "
-            "Positive X = right, positive Y = up (toward top of enclosure).",
+            "X/Y are mm from the centre of each face. "
+            "Side A = front face (positive Y = toward top). "
+            "Side B = top face (positive Y = toward front).",
             ParagraphStyle(
                 "ManifestNote",
                 fontSize=8,
