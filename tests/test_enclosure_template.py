@@ -129,12 +129,14 @@ def test_side_b_holes_recorded_with_side_b():
 
 
 def test_side_b_hole_coordinates_preserved():
+    # y_mm in data uses wings convention (positive = toward back).
+    # TaydaHole stores Tayda convention (positive = toward front), so y is negated.
     r = _make_renderer()
     holes = [SideBHole(label="DC", diameter_mm=12.0, x_mm=5.5, y_mm=-3.2)]
     r.draw_side_b_holes(holes, log=lambda m: None)
     h = r.holes[0]
     assert h.x_mm == 5.5
-    assert h.y_mm == -3.2
+    assert h.y_mm == 3.2   # negated: wings -3.2 (toward front) → Tayda +3.2 (toward front)
     assert h.diameter_mm == 12.0
     assert h.label == "DC"
 

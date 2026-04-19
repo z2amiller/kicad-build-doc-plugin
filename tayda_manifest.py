@@ -79,9 +79,9 @@ def generate_tayda_manifest_pdf(
     )
     story.append(
         Paragraph(
-            "X/Y are mm from the centre of each face. "
-            "Side A = front. Side B = top (positive Y = toward front). "
-            "Side C = left face on rotated enclosures (positive Y = toward front).",
+            "X/Y are mm from the centre of each face (positive Y = toward front). "
+            "Side A = front face. Side B = top face. "
+            "Side C = left face (rotated -R enclosures).",
             ParagraphStyle(
                 "ManifestNote",
                 fontSize=8,

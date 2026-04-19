@@ -245,8 +245,9 @@ class _EnclosureRenderer:
     def draw_side_b_holes(self, side_b: List, log) -> None:
         """Draw Side B (top face) holes on the top tab and record them for Tayda.
 
-        Side B coordinate system: X positive = right, Y positive = front face.
-        In the unfolded cross, Y positive = toward the front face = downward in the tab.
+        Side B coordinate system (wings/unfolded view convention):
+          X positive = right, Y positive = toward back (upward in the unfolded tab).
+        TaydaHole stores Tayda convention (positive Y = toward front), so y_mm is negated.
         """
         if not side_b:
             return
@@ -267,11 +268,11 @@ class _EnclosureRenderer:
                 side="B",
                 diameter_mm=hole.diameter_mm,
                 x_mm=hole.x_mm,
-                y_mm=hole.y_mm,
+                y_mm=-hole.y_mm,   # negate: wings convention → Tayda convention (positive = toward front)
                 label=hole.label,
             ))
             enc_x = hole.x_mm
-            enc_y = enc_h / 2 + enc_d / 2 - hole.y_mm
+            enc_y = enc_h / 2 + enc_d / 2 + hole.y_mm   # positive y_mm = toward back = upward in tab
             hx, hy = self.to_pdf(enc_x, enc_y)
             dia = hole.diameter_mm
             r = (dia / 2) * smm
