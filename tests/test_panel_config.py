@@ -52,6 +52,24 @@ def test_footprint_parsed(tmp_path):
     assert fp.label == "Volume"
 
 
+def test_footprint_use_pad_centroid_parsed(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "footprints": {
+            "LED_THT:LED_D3.0mm": {"hole_dia": 3.2, "offset_x": 0, "offset_y": 0, "use_pad_centroid": True},
+        },
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert result.footprints["LED_THT:LED_D3.0mm"].use_pad_centroid is True
+
+
+def test_footprint_use_pad_centroid_defaults_false(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "footprints": {"Lib:Part": {"hole_dia": 7.6, "offset_x": 0, "offset_y": 0}},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert result.footprints["Lib:Part"].use_pad_centroid is False
+
+
 def test_footprint_label_optional(tmp_path):
     _write_config(tmp_path / "panel_config.json", {
         "footprints": {"Lib:Part": {"hole_dia": 7.6, "offset_x": 0, "offset_y": 0}},

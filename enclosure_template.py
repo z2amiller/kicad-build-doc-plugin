@@ -1,6 +1,7 @@
 """1:1 scale enclosure drilling template PDF generation."""
 from __future__ import annotations
 
+import math
 import re
 from typing import Callable, Dict, List, Optional
 
@@ -178,21 +179,29 @@ class _EnclosureRenderer:
             if fp_id not in fp_config:
                 continue
             cfg = fp_config[fp_id]
-            rx, ry = self.fp_to_enc(
-                fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM
-            )
+            ref_x = fp.position.x / NM_PER_MM
+            ref_y = fp.position.y / NM_PER_MM
+            if cfg.use_pad_centroid:
+                try:
+                    dx, dy = _pad_centroid_offset_mm(fp)
+                    ref_x += dx
+                    ref_y += dy
+                except Exception:
+                    pass
+            rx, ry = self.fp_to_enc(ref_x, ref_y)
             ex = rx + cfg.offset_x
             ey = ry + cfg.offset_y
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
             self.draw_hole(ex, ey, cfg.hole_dia, label)
             log(
-                f"    {label}: fp-origin ({rx:.2f}, {ry:.2f})"
+                f"    {label}: ref ({rx:.2f}, {ry:.2f})"
                 f"  offset ({cfg.offset_x:+.1f}, {cfg.offset_y:+.1f})"
                 f"  hole ({ex:.2f}, {ey:.2f}) mm"
+                + (" [centroid]" if cfg.use_pad_centroid else "")
             )
 
     def draw_led_holes(self, board, fp_config: Dict, log) -> None:
-        """Draw holes for back-side LEDs/diodes."""
+        """Draw holes for back-side LEDs/diodes not already in fp_config."""
         led_re = re.compile(r"^(D|LED)\d", re.IGNORECASE)
         for fp in safe_get_footprints(board, log):
             ref = fp.reference_field.text.value
@@ -201,6 +210,8 @@ class _EnclosureRenderer:
             if fp.layer != BoardLayer.BL_B_Cu:  # not flipped to back side
                 continue
             fp_id = get_fp_id(fp)
+            if fp_id in fp_config:  # already drawn by draw_footprint_holes
+                continue
             cfg = fp_config.get(
                 fp_id,
                 FootprintHoleConfig(hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED"),
@@ -443,7 +454,16 @@ def get_computed_holes(
             if fp_id not in fp_config:
                 continue
             cfg = fp_config[fp_id]
-            rx, ry = r.fp_to_enc(fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM)
+            ref_x = fp.position.x / NM_PER_MM
+            ref_y = fp.position.y / NM_PER_MM
+            if cfg.use_pad_centroid:
+                try:
+                    dx, dy = _pad_centroid_offset_mm(fp)
+                    ref_x += dx
+                    ref_y += dy
+                except Exception:
+                    pass
+            rx, ry = r.fp_to_enc(ref_x, ref_y)
             ex, ey = rx + cfg.offset_x, ry + cfg.offset_y
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
             results.append((label, cfg.hole_dia, ex, ey))
@@ -456,6 +476,8 @@ def get_computed_holes(
             if fp.layer != BoardLayer.BL_B_Cu:
                 continue
             fp_id = get_fp_id(fp)
+            if fp_id in fp_config:  # already included in fp_config loop above
+                continue
             cfg = fp_config.get(fp_id, FootprintHoleConfig(hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED"))
             ex, ey = r.fp_to_enc(fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM, cfg.offset_x, cfg.offset_y)
             results.append((cfg.label or "LED", cfg.hole_dia, ex, ey))
@@ -464,6 +486,41 @@ def get_computed_holes(
     except Exception as exc:
         _log(f"  get_computed_holes failed: {exc}")
         return []
+
+
+def _pad_centroid_offset_mm(fp) -> tuple:
+    """Return pad centroid as (dx, dy) offset from fp.position, in mm (PCB frame).
+
+    Pad positions in fp.definition.pads are in the footprint's local coordinate
+    system (nanometres). We rotate by fp.orientation to get the PCB-frame offset.
+    Falls back to (0, 0) on any error or if no pads are present.
+    """
+    try:
+        pads = list(fp.definition.pads)
+    except AttributeError:
+        return (0.0, 0.0)
+    if not pads:
+        return (0.0, 0.0)
+    # kipy reports pad positions in absolute board coordinates (nanometres).
+    # Subtract fp.position to get the offset from the footprint origin.
+    cx = sum(p.position.x for p in pads) / len(pads) - fp.position.x
+    cy = sum(p.position.y for p in pads) / len(pads) - fp.position.y
+    # B_Cu footprints are mirrored: local X is negated in PCB space
+    try:
+        if fp.layer == BoardLayer.BL_B_Cu:
+            cx = -cx
+    except Exception:
+        pass
+    # rotate local offset into PCB frame using fp.orientation
+    try:
+        a = fp.orientation.to_radians()
+        cos_a, sin_a = math.cos(a), math.sin(a)
+        dx = (cos_a * cx - sin_a * cy) / NM_PER_MM
+        dy = (sin_a * cx + cos_a * cy) / NM_PER_MM
+    except Exception:
+        dx = cx / NM_PER_MM
+        dy = cy / NM_PER_MM
+    return (dx, dy)
 
 
 def _find_top_anchor(board, fp_config: Dict) -> Optional[float]:

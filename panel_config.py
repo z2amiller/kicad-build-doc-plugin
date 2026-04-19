@@ -20,6 +20,7 @@ class FootprintHoleConfig:
     offset_x: float
     offset_y: float
     label: Optional[str] = None
+    use_pad_centroid: bool = False
 
 
 @dataclass
@@ -79,6 +80,7 @@ def _footprint_from_dict(d: dict) -> FootprintHoleConfig:
         offset_x=float(d.get("offset_x", 0.0)),
         offset_y=float(d.get("offset_y", 0.0)),
         label=d.get("label") or None,
+        use_pad_centroid=bool(d.get("use_pad_centroid", False)),
     )
 
 
