@@ -266,8 +266,9 @@ def load_panel_config(
     if "side_b" in merged:
         side_b: List[SideBHole] = [_side_b_hole_from_dict(h) for h in merged["side_b"]]
     elif enclosure.preset and enclosure.preset in ENCLOSURE_PRESETS:
-        defaults = ENCLOSURE_PRESETS[enclosure.preset].get("side_b_defaults", [])
-        side_b = [_side_b_hole_from_dict(h) for h in defaults]
+        layouts = ENCLOSURE_PRESETS[enclosure.preset].get("side_b_layouts", [])
+        first_holes = layouts[0]["holes"] if layouts else []
+        side_b = [_side_b_hole_from_dict(h) for h in first_holes]
     else:
         side_b = []
 

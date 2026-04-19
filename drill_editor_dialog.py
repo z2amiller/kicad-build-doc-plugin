@@ -12,7 +12,7 @@ import wx
 import wx.dataview as dv
 
 from footprint_utils import get_board_path
-from panel_config import ENCLOSURE_PRESETS, EnclosureConfig, FixedHole, PanelConfig, load_global_config, load_panel_config
+from panel_config import ENCLOSURE_PRESETS, EnclosureConfig, FixedHole, PanelConfig, SideBHole, load_global_config, load_panel_config
 
 _PRESET_CHOICES = ["Custom"] + list(ENCLOSURE_PRESETS.keys())
 
@@ -37,7 +37,7 @@ def _check_webview() -> bool:
 
 class DrillEditorDialog(wx.Dialog):
     def __init__(self, parent, board, plugin_dir: str) -> None:
-        super().__init__(parent, title="Edit Enclosure Drills", size=(760, 580),
+        super().__init__(parent, title="Edit Enclosure Drills", size=(760, 720),
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.board = board
         self.plugin_dir = plugin_dir
@@ -51,9 +51,11 @@ class DrillEditorDialog(wx.Dialog):
             project = load_panel_config(self._board_path or "", plugin_dir)
             self._enclosure = project.enclosure
             self._rows: List[FixedHole] = list(project.fixed_holes)
+            self._side_b: List[SideBHole] = list(project.side_b)
         else:
             self._enclosure = self._global_config.enclosure
             self._rows: List[FixedHole] = list(self._global_config.fixed_holes)
+            self._side_b: List[SideBHole] = list(self._global_config.side_b)
         self._selected: Optional[int] = None
         self._updating = False
         self._preview_path: Optional[str] = None
@@ -102,6 +104,19 @@ class DrillEditorDialog(wx.Dialog):
         self._txt_enc_d = wx.TextCtrl(panel, value=f"{self._enclosure.depth:.1f}", size=(52, -1))
         enc_row.Add(self._txt_enc_d, flag=wx.ALIGN_CENTER_VERTICAL)
         left.Add(enc_row, flag=wx.ALL, border=8)
+
+        # Top-face (Side B) layout picker
+        layout_row = wx.BoxSizer(wx.HORIZONTAL)
+        layout_row.Add(wx.StaticText(panel, label="Top face (Side B):"), flag=wx.ALIGN_CENTER_VERTICAL)
+        layout_row.AddSpacer(6)
+        self._cho_layout = wx.Choice(panel, choices=self._layout_names())
+        self._cho_layout.SetSelection(0)
+        layout_row.Add(self._cho_layout, proportion=1, flag=wx.ALIGN_CENTER_VERTICAL)
+        layout_row.AddSpacer(6)
+        btn_apply_layout = wx.Button(panel, label="Apply Layout", size=(-1, -1))
+        btn_apply_layout.Bind(wx.EVT_BUTTON, self._on_apply_layout)
+        layout_row.Add(btn_apply_layout, flag=wx.ALIGN_CENTER_VERTICAL)
+        left.Add(layout_row, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=8)
 
         # Auto-detected holes (read-only)
         left.Add(wx.StaticText(panel, label="Auto-detected holes (from board footprints):"),
@@ -174,6 +189,18 @@ class DrillEditorDialog(wx.Dialog):
             ctrl.Bind(wx.EVT_TEXT, self._on_edit)
             ctrl.Enable(False)
 
+        # Top face (Side B) holes — read-only display
+        left.Add(wx.StaticText(panel, label="Top face holes (Side B — use layout picker above to change):"),
+                 flag=wx.LEFT, border=8)
+        self._dvc_side_b = dv.DataViewListCtrl(
+            panel, style=dv.DV_SINGLE | dv.DV_ROW_LINES | dv.DV_NO_HEADER)
+        self._dvc_side_b.AppendTextColumn("Label",    width=140, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_side_b.AppendTextColumn("Dia (mm)", width=70,  mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_side_b.AppendTextColumn("X (mm)",   width=70,  mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_side_b.AppendTextColumn("Y (mm)",   width=70,  mode=dv.DATAVIEW_CELL_INERT)
+        left.Add(self._dvc_side_b, proportion=0, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=8)
+        self._refresh_side_b_list()
+
         # Apply / Cancel / Preview buttons
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self._btn_preview = wx.Button(panel, label="Preview PDF")
@@ -203,6 +230,28 @@ class DrillEditorDialog(wx.Dialog):
         self.Layout()
 
     # ── List management ───────────────────────────────────────────────────────
+
+    def _layout_names(self) -> List[str]:
+        """Return layout names for the current preset, or a placeholder if none."""
+        preset = self._enclosure.preset
+        if preset and preset in ENCLOSURE_PRESETS:
+            layouts = ENCLOSURE_PRESETS[preset].get("side_b_layouts", [])
+            if layouts:
+                return [lay["name"] for lay in layouts]
+        return ["(no layouts for this enclosure)"]
+
+    def _refresh_layout_choices(self) -> None:
+        self._cho_layout.Clear()
+        for name in self._layout_names():
+            self._cho_layout.Append(name)
+        self._cho_layout.SetSelection(0)
+
+    def _refresh_side_b_list(self) -> None:
+        self._dvc_side_b.DeleteAllItems()
+        for h in self._side_b:
+            self._dvc_side_b.AppendItem([h.label, f"{h.diameter_mm:.2f}", f"{h.x_mm:.2f}", f"{h.y_mm:.2f}"])
+        if not self._side_b:
+            self._dvc_side_b.AppendItem(["(none)", "", "", ""])
 
     def _populate_auto_holes(self) -> None:
         from enclosure_template import get_computed_holes
@@ -242,8 +291,31 @@ class DrillEditorDialog(wx.Dialog):
         self._txt_enc_h.SetValue(f"{pdata['height']:.1f}")
         self._txt_enc_d.SetValue(f"{pdata['depth']:.1f}")
         self._updating = False
+        self._refresh_layout_choices()
         if self._use_webview:
             self._on_preview(None)
+
+    def _on_apply_layout(self, event: Any) -> None:
+        preset = self._current_preset()
+        if not preset or preset not in ENCLOSURE_PRESETS:
+            return
+        layouts = ENCLOSURE_PRESETS[preset].get("side_b_layouts", [])
+        if not layouts:
+            return
+        idx = self._cho_layout.GetSelection()
+        if idx < 0 or idx >= len(layouts):
+            return
+        layout = layouts[idx]
+        if wx.MessageBox(
+            f"Replace Side B holes with layout \"{layout['name']}\"?\n"
+            "This will overwrite any existing top-face holes.",
+            "Apply Layout",
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+        ) != wx.YES:
+            return
+        from panel_config import _side_b_hole_from_dict
+        self._side_b = [_side_b_hole_from_dict(h) for h in layout["holes"]]
+        self._refresh_side_b_list()
 
     def _on_selection(self, event: Any) -> None:
         row = self._dvc.GetSelectedRow()
@@ -379,6 +451,7 @@ class DrillEditorDialog(wx.Dialog):
             return
         self._enclosure = self._global_config.enclosure
         self._rows = list(self._global_config.fixed_holes)
+        self._side_b = list(self._global_config.side_b)
         self._selected = None
         self._updating = True
         preset_idx = (
@@ -391,7 +464,9 @@ class DrillEditorDialog(wx.Dialog):
         self._txt_enc_h.SetValue(f"{self._enclosure.height:.1f}")
         self._txt_enc_d.SetValue(f"{self._enclosure.depth:.1f}")
         self._updating = False
+        self._refresh_layout_choices()
         self._refresh_list()
+        self._refresh_side_b_list()
         for ctrl in (self._txt_label, self._txt_dia, self._txt_x, self._txt_y):
             ctrl.Enable(False)
         if self._use_webview:
@@ -430,6 +505,10 @@ class DrillEditorDialog(wx.Dialog):
         existing["fixed_holes"] = [
             {"label": h.label, "dia": h.dia, "x": h.x, "y": h.y}
             for h in self._rows
+        ]
+        existing["side_b"] = [
+            {"label": h.label, "diameter_mm": h.diameter_mm, "x_mm": h.x_mm, "y_mm": h.y_mm}
+            for h in self._side_b
         ]
         # Remove the now-obsolete remove_fixed_holes key if present from an old file.
         existing.pop("remove_fixed_holes", None)

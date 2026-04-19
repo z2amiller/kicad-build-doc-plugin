@@ -356,7 +356,8 @@ def test_side_b_preset_provides_defaults(tmp_path):
         "enclosure": {"preset": "125B"},
     })
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
-    assert len(result.side_b) == len(ENCLOSURE_PRESETS["125B"]["side_b_defaults"])
+    expected_holes = ENCLOSURE_PRESETS["125B"]["side_b_layouts"][0]["holes"]
+    assert len(result.side_b) == len(expected_holes)
     labels = [h.label for h in result.side_b]
     assert "Input" in labels
     assert "Output" in labels
