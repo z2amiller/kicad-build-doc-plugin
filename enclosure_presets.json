@@ -69,28 +69,6 @@
     "rotated": true,
     "side_b_layouts": []
   },
-  "1590A": {
-    "width": 38.0,
-    "height": 92.0,
-    "depth": 31.0,
-    "rotated": false,
-    "side_b_layouts": [
-      {
-        "name": "Standard (Input + Output)",
-        "holes": [
-          {"label": "Input",  "diameter_mm": 9.8, "x_mm": -8.0, "y_mm": 0.0},
-          {"label": "Output", "diameter_mm": 9.8, "x_mm":  8.0, "y_mm": 0.0}
-        ]
-      }
-    ]
-  },
-  "1590A-R": {
-    "width": 92.0,
-    "height": 38.0,
-    "depth": 31.0,
-    "rotated": true,
-    "side_b_layouts": []
-  },
   "1590XX": {
     "width": 121.0,
     "height": 145.0,

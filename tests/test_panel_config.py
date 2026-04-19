@@ -77,7 +77,7 @@ def test_preset_table_has_expected_sizes():
     assert "125B" in ENCLOSURE_PRESETS
     assert "1590B" in ENCLOSURE_PRESETS
     assert "1590BB" in ENCLOSURE_PRESETS
-    assert "1590A" in ENCLOSURE_PRESETS
+
     assert "1590XX" in ENCLOSURE_PRESETS
 
 
@@ -412,12 +412,3 @@ def test_side_b_merge_inherits_global_when_absent(tmp_path):
     assert result.side_b[0].label == "Global DC"
 
 
-def test_side_b_1590a_has_no_dc(tmp_path):
-    _write_config(tmp_path / "panel_config.json", {
-        "enclosure": {"preset": "1590A"},
-    })
-    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
-    labels = [h.label for h in result.side_b]
-    assert "DC" not in labels
-    assert "Input" in labels
-    assert "Output" in labels
