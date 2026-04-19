@@ -198,13 +198,13 @@ Use the preview to catch common issues before generating the final PDF:
 
 - **Wrong enclosure size** — if holes cluster near the top or bottom edge, or land outside the outline, the enclosure dimensions are likely off. Open **Edit Enclosure Drills…** and select the correct preset, or adjust Width/Height manually.
 - **Missing holes** — if a panel-mounted control has no corresponding hole in the preview, its footprint type is not in the global rules. See [Footprint rules editor](#footprint-rules-editor) below.
-- **Wrong hole position** — if a hole is present but in the wrong place, the `offset_x`/`offset_y` for that footprint needs adjustment. Open **Edit Footprint Rules…**, select the rule, and tweak the offsets; the preview updates as you type.
+- **Wrong hole position** — if a hole is present but in the wrong place, the `offset_x`/`offset_y` for that footprint needs adjustment. Open **Edit Enclosure Drills…**, select the footprint in the auto-detected holes list, and tweak the offsets; the preview updates as you type.
 
 ---
 
 ### Footprint rules editor
 
-Click **Edit Footprint Rules…** in the main dialog to open the rules editor. It scans your board and compares every footprint that has a `Control` field against the global rules database.
+Click **Manage Autodetect Rules…** inside the **Edit Enclosure Drills** dialog to open the rules editor. It scans your board and compares every footprint that has a `Control` field against the global rules database.
 
 **Top section — unrecognized footprints:** any footprint type found on the board that has no rule is listed here, with all the reference designators that use it and the `Control` label from the first one found. These are the footprints that would produce no hole in the drilling template.
 
