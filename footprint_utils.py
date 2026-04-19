@@ -118,6 +118,18 @@ def friendly_footprint_type(ref: str, fp_name: str) -> str:
 _EXCLUDE_ALL_RE = re.compile(r"^(D|LED)\d*$", re.IGNORECASE)
 _EXCLUDE_INTERNAL_RE = re.compile(r"^(D|LED|TP)\d*$", re.IGNORECASE)
 
+# Footprint library prefixes that indicate LED/diode indicators regardless of ref prefix.
+# Catches SMD LEDs whose refs don't follow D*/LED* convention.
+_LED_LIBRARY_RE = re.compile(r"^(LED_SMD|LED_THT|Diode_SMD|Diode_THT)", re.IGNORECASE)
+
+
+def _is_led_footprint(fp) -> bool:
+    try:
+        library = fp.definition.id.library
+        return bool(_LED_LIBRARY_RE.match(library))
+    except Exception:
+        return False
+
 
 def _is_single_pad(fp) -> bool:
     try:
@@ -144,7 +156,7 @@ def extract_controls(board, external_ids: set) -> Controls:
         ref = fp.reference_field.text.value
         if ref.startswith("~") or ref in ("REF**", ""):
             continue
-        if _EXCLUDE_ALL_RE.match(ref):
+        if _EXCLUDE_ALL_RE.match(ref) or _is_led_footprint(fp):
             continue
         label = get_field(fp, "Control")
         if not label or label in seen:

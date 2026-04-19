@@ -146,11 +146,15 @@ class BuildDocDialog(wx.Dialog):
         dlg.Destroy()
 
     def on_edit_drills(self, event):
-        from drill_editor_dialog import DrillEditorDialog
-        plugin_dir = os.path.dirname(os.path.abspath(__file__))
-        dlg = DrillEditorDialog(self, self.board, plugin_dir)
-        dlg.ShowModal()
-        dlg.Destroy()
+        try:
+            from drill_editor_dialog import DrillEditorDialog
+            plugin_dir = os.path.dirname(os.path.abspath(__file__))
+            dlg = DrillEditorDialog(self, self.board, plugin_dir)
+            dlg.ShowModal()
+            dlg.Destroy()
+        except Exception:
+            import traceback
+            wx.MessageBox(traceback.format_exc(), "Drill Editor Error", wx.OK | wx.ICON_ERROR)
 
     def on_browse_sch(self, event):
         dlg = wx.FileDialog(self, "Select Schematic", wildcard="KiCad Schematic (*.kicad_sch)|*.kicad_sch",

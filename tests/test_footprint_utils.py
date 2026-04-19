@@ -144,6 +144,14 @@ def test_extract_controls_excludes_leds_and_diodes():
     assert result == Controls(external=[], internal=[])
 
 
+def test_extract_controls_excludes_led_smd_library():
+    # SMD LED with non-standard ref (e.g. D5 shows up as D, but test a case
+    # where the ref alone wouldn't catch it).
+    fp = _make_fp_with_control("U5", "LED", "Status", fp_id="LED_SMD:LED_0805_2012Metric")
+    result = extract_controls(_make_board_ec([fp]), set())
+    assert result == Controls(external=[], internal=[])
+
+
 def test_extract_controls_excludes_test_points_from_internal():
     fp = _make_fp_with_control("TP1", "TestPoint", "Signal")
     result = extract_controls(_make_board_ec([fp]), set())
