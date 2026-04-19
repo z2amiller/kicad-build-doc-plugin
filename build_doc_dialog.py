@@ -173,7 +173,7 @@ class BuildDocDialog(wx.Dialog):
         try:
             from footprint_rules_dialog import FootprintRulesDialog
             plugin_dir = os.path.dirname(os.path.abspath(__file__))
-            dlg = FootprintRulesDialog(self, plugin_dir)
+            dlg = FootprintRulesDialog(self, self.board, plugin_dir)
             dlg.ShowModal()
             dlg.Destroy()
         except Exception:
