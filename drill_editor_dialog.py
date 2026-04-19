@@ -12,7 +12,9 @@ import wx
 import wx.dataview as dv
 
 from footprint_utils import get_board_path
-from panel_config import EnclosureConfig, FixedHole, PanelConfig, load_global_config, load_panel_config
+from panel_config import ENCLOSURE_PRESETS, EnclosureConfig, FixedHole, PanelConfig, load_global_config, load_panel_config
+
+_PRESET_CHOICES = ["Custom"] + list(ENCLOSURE_PRESETS.keys())
 
 COL_LABEL = 0
 COL_DIA   = 1
@@ -71,10 +73,20 @@ class DrillEditorDialog(wx.Dialog):
         # ── Left pane: list + edit controls ───────────────────────
         left = wx.BoxSizer(wx.VERTICAL)
 
-        # Enclosure dimensions row
+        # Enclosure size row
         enc_row = wx.BoxSizer(wx.HORIZONTAL)
-        enc_row.Add(wx.StaticText(panel, label="Enclosure (mm):"), flag=wx.ALIGN_CENTER_VERTICAL)
-        enc_row.AddSpacer(6)
+        enc_row.Add(wx.StaticText(panel, label="Size:"), flag=wx.ALIGN_CENTER_VERTICAL)
+        enc_row.AddSpacer(4)
+        self._cho_preset = wx.Choice(panel, choices=_PRESET_CHOICES)
+        preset_idx = (
+            _PRESET_CHOICES.index(self._enclosure.preset)
+            if self._enclosure.preset in _PRESET_CHOICES
+            else 0
+        )
+        self._cho_preset.SetSelection(preset_idx)
+        self._cho_preset.Bind(wx.EVT_CHOICE, self._on_preset_changed)
+        enc_row.Add(self._cho_preset, flag=wx.ALIGN_CENTER_VERTICAL)
+        enc_row.AddSpacer(12)
         enc_row.Add(wx.StaticText(panel, label="W"), flag=wx.ALIGN_CENTER_VERTICAL)
         enc_row.AddSpacer(2)
         self._txt_enc_w = wx.TextCtrl(panel, value=f"{self._enclosure.width:.1f}", size=(52, -1))
@@ -220,6 +232,19 @@ class DrillEditorDialog(wx.Dialog):
 
     # ── Event handlers ────────────────────────────────────────────────────────
 
+    def _on_preset_changed(self, event: Any) -> None:
+        preset = _PRESET_CHOICES[self._cho_preset.GetSelection()]
+        if preset == "Custom" or preset not in ENCLOSURE_PRESETS:
+            return
+        w, h, d = ENCLOSURE_PRESETS[preset]
+        self._updating = True
+        self._txt_enc_w.SetValue(f"{w:.1f}")
+        self._txt_enc_h.SetValue(f"{h:.1f}")
+        self._txt_enc_d.SetValue(f"{d:.1f}")
+        self._updating = False
+        if self._use_webview:
+            self._on_preview(None)
+
     def _on_selection(self, event: Any) -> None:
         row = self._dvc.GetSelectedRow()
         if row < 0 or row >= len(self._rows):
@@ -275,6 +300,11 @@ class DrillEditorDialog(wx.Dialog):
         if self._use_webview:
             self._on_preview(None)
 
+    def _current_preset(self) -> Optional[str]:
+        """Return the selected preset name, or None for Custom."""
+        name = _PRESET_CHOICES[self._cho_preset.GetSelection()]
+        return name if name != "Custom" else None
+
     def _build_config(self) -> PanelConfig:
         """Build a PanelConfig from current dialog state (enclosure + fixed holes)."""
         try:
@@ -282,6 +312,7 @@ class DrillEditorDialog(wx.Dialog):
                 width=float(self._txt_enc_w.GetValue()),
                 height=float(self._txt_enc_h.GetValue()),
                 depth=float(self._txt_enc_d.GetValue()),
+                preset=self._current_preset(),
             )
         except ValueError:
             enc = self._enclosure
@@ -350,6 +381,12 @@ class DrillEditorDialog(wx.Dialog):
         self._rows = list(self._global_config.fixed_holes)
         self._selected = None
         self._updating = True
+        preset_idx = (
+            _PRESET_CHOICES.index(self._enclosure.preset)
+            if self._enclosure.preset in _PRESET_CHOICES
+            else 0
+        )
+        self._cho_preset.SetSelection(preset_idx)
         self._txt_enc_w.SetValue(f"{self._enclosure.width:.1f}")
         self._txt_enc_h.SetValue(f"{self._enclosure.height:.1f}")
         self._txt_enc_d.SetValue(f"{self._enclosure.depth:.1f}")
@@ -385,7 +422,11 @@ class DrillEditorDialog(wx.Dialog):
             except Exception:
                 pass
 
-        existing["enclosure"] = {"width": enc_w, "height": enc_h, "depth": enc_d}
+        enc_dict: dict = {"width": enc_w, "height": enc_h, "depth": enc_d}
+        preset = self._current_preset()
+        if preset:
+            enc_dict["preset"] = preset
+        existing["enclosure"] = enc_dict
         existing["fixed_holes"] = [
             {"label": h.label, "dia": h.dia, "x": h.x, "y": h.y}
             for h in self._rows
