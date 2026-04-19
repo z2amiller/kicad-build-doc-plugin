@@ -46,14 +46,14 @@ def test_empty_holes_still_generates(tmp_path):
     assert os.path.exists(out)
 
 
-def test_sort_order_side_a_before_b_then_y_desc():
-    """Side A comes before B; within a side, holes are sorted top-to-bottom (Y desc)."""
-    from tayda_manifest import generate_tayda_manifest_pdf as _gen
+def test_sort_order_side_a_before_b_before_c_then_y_desc():
+    """Side A < B < C; within a side, holes sorted top-to-bottom (Y desc)."""
     holes = [
-        TaydaHole(side="B", diameter_mm=9.5, x_mm=0, y_mm=0, label="DC"),
+        TaydaHole(side="C", diameter_mm=9.5, x_mm=0, y_mm=0, label="LeftJack"),
+        TaydaHole(side="B", diameter_mm=9.5, x_mm=0, y_mm=0, label="TopJack"),
         TaydaHole(side="A", diameter_mm=8.2, x_mm=0, y_mm=-10, label="Low"),
         TaydaHole(side="A", diameter_mm=8.2, x_mm=0, y_mm=30, label="High"),
     ]
     sorted_holes = sorted(holes, key=lambda h: (h.side, -h.y_mm))
     labels = [h.label for h in sorted_holes]
-    assert labels == ["High", "Low", "DC"]
+    assert labels == ["High", "Low", "TopJack", "LeftJack"]

@@ -488,13 +488,14 @@ def generate_enclosure_pdf(
     _log("  Enclosure template written.")
     holes = renderer.holes
     if enc.rotated:
-        # -R presets are 90° CW from Tayda's portrait orientation.
-        # Transform back so the manifest has portrait coordinates: x_P = -y_L, y_P = x_L
-        holes = [
-            TaydaHole(side=h.side, diameter_mm=h.diameter_mm,
-                      x_mm=-h.y_mm, y_mm=h.x_mm, label=h.label)
-            for h in holes
-        ]
+        # -R presets are 90° CCW from Tayda's portrait orientation (top-on-left).
+        # Front face (Side A) coordinates transform to portrait: x_P = y_L, y_P = -x_L
+        # Top face (Side B in landscape) becomes Side C (left face) in portrait.
+        def _rotate_to_portrait(h: TaydaHole) -> TaydaHole:
+            tayda_side = "C" if h.side == "B" else h.side
+            return TaydaHole(side=tayda_side, diameter_mm=h.diameter_mm,
+                             x_mm=h.y_mm, y_mm=-h.x_mm, label=h.label)
+        holes = [_rotate_to_portrait(h) for h in holes]
     return holes
 
 

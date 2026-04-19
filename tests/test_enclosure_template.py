@@ -171,18 +171,19 @@ def test_rotated_preset_transforms_tayda_coords():
     hole_out = et.TaydaHole(
         side=hole_in.side,
         diameter_mm=hole_in.diameter_mm,
-        x_mm=-hole_in.y_mm,
-        y_mm=hole_in.x_mm,
+        x_mm=hole_in.y_mm,
+        y_mm=-hole_in.x_mm,
         label=hole_in.label,
     )
-    assert hole_out.x_mm == 10.0
-    assert hole_out.y_mm == 30.0
+    # landscape (30, -10) → portrait: x_P = y_L = -10, y_P = -x_L = -30
+    assert hole_out.x_mm == -10.0
+    assert hole_out.y_mm == -30.0
 
 
-def test_side_b_holes_appear_before_fixed_in_tayda_sort():
-    """Side B holes sort after Side A holes by the Tayda sort key (side, -y)."""
+def test_tayda_side_sort_order():
+    """Side A < B < C alphabetically matches Tayda's expected ordering."""
     side_a = TaydaHole(side="A", diameter_mm=8.2, x_mm=0, y_mm=30, label="Knob")
-    side_b = TaydaHole(side="B", diameter_mm=9.53, x_mm=0, y_mm=0, label="Input")
-    sorted_holes = sorted([side_b, side_a], key=lambda h: (h.side, -h.y_mm))
-    assert sorted_holes[0].side == "A"
-    assert sorted_holes[1].side == "B"
+    side_b = TaydaHole(side="B", diameter_mm=9.53, x_mm=0, y_mm=0, label="Jack")
+    side_c = TaydaHole(side="C", diameter_mm=9.53, x_mm=0, y_mm=0, label="Input")
+    sorted_holes = sorted([side_c, side_b, side_a], key=lambda h: (h.side, -h.y_mm))
+    assert [h.side for h in sorted_holes] == ["A", "B", "C"]
