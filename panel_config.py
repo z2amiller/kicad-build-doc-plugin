@@ -112,7 +112,9 @@ def _merge_configs(base: dict, override: dict) -> dict:
             merged_fps[fp_id] = cfg
     result["footprints"] = merged_fps
 
-    result["fixed_holes"] = list(base.get("fixed_holes", [])) + list(override.get("fixed_holes", []))
+    remove_labels = set(override.get("remove_fixed_holes", []))
+    base_holes = [h for h in base.get("fixed_holes", []) if h.get("label") not in remove_labels]
+    result["fixed_holes"] = base_holes + list(override.get("fixed_holes", []))
 
     return result
 

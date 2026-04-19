@@ -159,14 +159,16 @@ When a per-project `panel_config.json` is present, it is merged with the global 
 | `enclosure` | Project value replaces global entirely |
 | `footprints` | Project entries add or override individual global entries; set a footprint to `null` to remove it; unmentioned footprints are inherited |
 | `fixed_holes` | Project entries are appended after global entries |
+| `remove_fixed_holes` | List of labels to remove from the global `fixed_holes` before appending project entries |
 
-A minimal per-project file that just changes the enclosure and adds a fixed footswitch hole:
+A common example: a two-footswitch design where the global centred footswitch entry needs to be replaced with two fixed holes at specific positions:
 
 ```json
 {
-  "enclosure": {"width": 112, "height": 60, "depth": 31},
+  "remove_fixed_holes": ["Footswitch"],
   "fixed_holes": [
-    {"label": "Bypass", "dia": 12.2, "x": 0, "y": -22}
+    {"label": "Footswitch L", "dia": 12.2, "x": -15, "y": -45.2},
+    {"label": "Footswitch R", "dia": 12.2, "x":  15, "y": -45.2}
   ]
 }
 ```
