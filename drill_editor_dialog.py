@@ -23,6 +23,7 @@ from panel_config import (
 class _FpEntry:
     """One footprint-derived hole being displayed/edited in the drill editor."""
     fp_id: str
+    reference: str   # e.g. "RV1" — unique instance identifier
     label: str
     hole_dia: float
     offset_x: float
@@ -335,6 +336,7 @@ class DrillEditorDialog(wx.Dialog):
             orig_cfg = self._global_config.footprints.get(fp_id)
             fe = _FpEntry(
                 fp_id=fp_id,
+                reference=e["reference"],
                 label=e["label"],
                 hole_dia=e["hole_dia"],
                 offset_x=e["offset_x"],
@@ -572,9 +574,9 @@ class DrillEditorDialog(wx.Dialog):
             fixed_holes=config.fixed_holes,
             side_b=full.side_b,
         )
-        highlight: Optional[Set[str]] = None
+        highlight_refs: Optional[Set[str]] = None
         if self._fp_selected is not None and self._fp_selected < len(self._fp_entries):
-            highlight = {self._fp_entries[self._fp_selected].fp_id}
+            highlight_refs = {self._fp_entries[self._fp_selected].reference}
         try:
             tf = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
             tf.close()
@@ -587,7 +589,7 @@ class DrillEditorDialog(wx.Dialog):
                 page_num=1,
                 out_path=tf.name,
                 face_only=True,
-                highlight_fp_ids=highlight,
+                highlight_refs=highlight_refs,
             )
             return tf.name
         except Exception as exc:

@@ -187,7 +187,8 @@ class _EnclosureRenderer:
     # ── Hole groups ───────────────────────────────────────────────────────────
 
     def draw_footprint_holes(self, board, fp_config: Dict, log,
-                              highlight_fp_ids: Optional[Set[str]] = None) -> None:
+                              highlight_fp_ids: Optional[Set[str]] = None,
+                              highlight_refs: Optional[Set[str]] = None) -> None:
         """Iterate fp_config footprints and draw their holes."""
         for fp in safe_get_footprints(board, log):
             fp_id = get_fp_id(fp)
@@ -199,7 +200,12 @@ class _EnclosureRenderer:
             ex = rx + cfg.offset_x
             ey = ry + cfg.offset_y
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
-            color = (0.8, 0.0, 0.0) if (highlight_fp_ids and fp_id in highlight_fp_ids) else (0, 0, 0)
+            ref = fp.reference_field.text.value
+            highlighted = (
+                (highlight_refs and ref in highlight_refs)
+                or (highlight_fp_ids and fp_id in highlight_fp_ids)
+            )
+            color = (0.8, 0.0, 0.0) if highlighted else (0, 0, 0)
             self.draw_hole(ex, ey, cfg.hole_dia, label, color=color)
             log(
                 f"    {label}: ref ({rx:.2f}, {ry:.2f})"
@@ -390,6 +396,7 @@ def generate_enclosure_pdf(
     log: Optional[Callable] = None,
     face_only: bool = False,
     highlight_fp_ids: Optional[Set[str]] = None,
+    highlight_refs: Optional[Set[str]] = None,
 ) -> List[TaydaHole]:
     """Render a 1:1 drilling template on a letter-size page.
 
@@ -471,7 +478,9 @@ def generate_enclosure_pdf(
         renderer.draw_outline()
         renderer.draw_fold_lines()
         renderer.draw_centre_lines()
-    renderer.draw_footprint_holes(board, fp_config, _log, highlight_fp_ids=highlight_fp_ids)
+    renderer.draw_footprint_holes(board, fp_config, _log,
+                                  highlight_fp_ids=highlight_fp_ids,
+                                  highlight_refs=highlight_refs)
     renderer.draw_led_holes(board, fp_config, _log)
     renderer.draw_fixed_holes(fixed_holes, _log)
     if not face_only:
@@ -586,6 +595,7 @@ def get_footprint_entries(
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
             results.append({
                 "fp_id": fp_id,
+                "reference": fp.reference_field.text.value,
                 "label": label,
                 "hole_dia": cfg.hole_dia,
                 "offset_x": cfg.offset_x,
