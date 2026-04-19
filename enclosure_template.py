@@ -58,6 +58,7 @@ class _EnclosureRenderer:
         td: float,
         board_cx: float,
         top_pcb_y: float,
+        scale_mm: float = MM,
     ) -> None:
         self.c = c
         self.ox = ox
@@ -69,12 +70,13 @@ class _EnclosureRenderer:
         self.td = td
         self.board_cx = board_cx
         self.top_pcb_y = top_pcb_y
+        self.scale_mm = scale_mm
 
     # ── Coordinate helpers ────────────────────────────────────────────────────
 
     def to_pdf(self, ex: float, ey: float):
         """Enclosure mm → PDF points."""
-        return self.ox + ex * MM, self.oy + ey * MM
+        return self.ox + ex * self.scale_mm, self.oy + ey * self.scale_mm
 
     def fp_to_enc(
         self,
@@ -99,9 +101,10 @@ class _EnclosureRenderer:
     def draw_hole(self, ex: float, ey: float, dia: float, label: str) -> None:
         """Draw a circle + crosshairs + labels at enclosure position (ex, ey)."""
         c = self.c
+        smm = self.scale_mm
         hx, hy = self.to_pdf(ex, ey)
-        r = (dia / 2) * MM
-        cross = min(r + 1.5 * MM, 3.5 * MM)
+        r = (dia / 2) * smm
+        cross = min(r + 1.5 * smm, 3.5 * smm)
         c.setStrokeColorRGB(0, 0, 0)
         c.setLineWidth(0.4)
         c.circle(hx, hy, r, stroke=1, fill=0)
@@ -110,16 +113,16 @@ class _EnclosureRenderer:
         c.line(hx, hy - cross, hx, hy + cross)
         c.setFillColorRGB(0, 0, 0)
         c.setFont("Helvetica", 5)
-        c.drawCentredString(hx, hy + r + 1.5 * MM, label)
+        c.drawCentredString(hx, hy + r + 1.5 * smm, label)
         c.setFont("Helvetica", 4)
-        c.drawCentredString(hx, hy - r - 3.0 * MM, f"\u00f8{dia:.1f} mm")
+        c.drawCentredString(hx, hy - r - 3.0 * smm, f"\u00f8{dia:.1f} mm")
 
     # ── Structural drawing ────────────────────────────────────────────────────
 
     def draw_outline(self) -> None:
         """Draw the rounded-rect cross: face + 4 tabs."""
         c = self.c
-        R = 3.0 * MM
+        R = 3.0 * self.scale_mm
         fl, fb, fw, fh, td = self.fl, self.fb, self.fw, self.fh, self.td
         c.setStrokeColorRGB(0, 0, 0)
         c.setLineWidth(0.75)
@@ -129,6 +132,14 @@ class _EnclosureRenderer:
         c.roundRect(fl, fb - td, fw, td, R, stroke=1, fill=0)  # bottom tab
         c.roundRect(fl - td, fb, td, fh, R, stroke=1, fill=0)  # left tab
         c.roundRect(fl + fw, fb, td, fh, R, stroke=1, fill=0)  # right tab
+
+    def draw_face_rect(self) -> None:
+        """Draw just the face outline (no tabs) — used for face-only preview."""
+        c = self.c
+        R = 3.0 * self.scale_mm
+        c.setStrokeColorRGB(0, 0, 0)
+        c.setLineWidth(0.75)
+        c.roundRect(self.fl, self.fb, self.fw, self.fh, R, stroke=1, fill=0)
 
     def draw_fold_lines(self) -> None:
         """Draw dashed lines at face boundary."""
@@ -144,12 +155,12 @@ class _EnclosureRenderer:
         c.line(fl + fw, fb, fl + fw, fb + fh)
         c.restoreState()
 
-    def draw_centre_lines(self) -> None:
-        """Draw dashed centre cross extending through tabs."""
+    def draw_centre_lines(self, face_only: bool = False) -> None:
+        """Draw dashed centre cross extending through tabs (or just the face)."""
         c = self.c
         fl, fb, fw, fh, td = self.fl, self.fb, self.fw, self.fh, self.td
         ox, oy = self.ox, self.oy
-        ext = 5 * MM
+        ext = 0 if face_only else 5 * self.scale_mm
         c.saveState()
         c.setDash([4, 3])
         c.setStrokeColorRGB(0.65, 0.65, 0.65)
@@ -309,6 +320,7 @@ def generate_enclosure_pdf(
     page_num: int,
     out_path: str,
     log: Optional[Callable] = None,
+    face_only: bool = False,
 ) -> None:
     """Render a 1:1 drilling template on a letter-size page.
 
@@ -342,15 +354,30 @@ def generate_enclosure_pdf(
             f" → enc_y = {TOP_ROW_MM} mm"
         )
 
-    # Enclosure origin in PDF coordinates — centred on the page, shifted 8 mm
-    # down to leave room for the title above.
-    ox = pw / 2
-    oy = ph / 2 - 8 * MM
-
-    fl, fb = ox + (-enc_w / 2) * MM, oy + (-enc_h / 2) * MM
-    fw = enc_w * MM
-    fh = enc_h * MM
-    td = enc_d * MM
+    if face_only:
+        # Scale the face to fill the page (no wings, no scale bar).
+        margin = 0.5 * inch
+        avail_w = pw - 2 * margin
+        avail_h = ph - 2 * margin
+        s = min(avail_w / (enc_w * MM), avail_h / (enc_h * MM))
+        scale_mm = MM * s
+        ox = pw / 2
+        oy = ph / 2
+        fw = enc_w * scale_mm
+        fh = enc_h * scale_mm
+        fl = ox - fw / 2
+        fb = oy - fh / 2
+        td = 0.0
+    else:
+        # 1:1 scale centred on page, shifted down for title.
+        scale_mm = MM
+        ox = pw / 2
+        oy = ph / 2 - 8 * MM
+        fl = ox - (enc_w / 2) * MM
+        fb = oy - (enc_h / 2) * MM
+        fw = enc_w * MM
+        fh = enc_h * MM
+        td = enc_d * MM
 
     c = rl_canvas.Canvas(out_path, pagesize=letter)
 
@@ -365,20 +392,78 @@ def generate_enclosure_pdf(
         td=td,
         board_cx=board_cx,
         top_pcb_y=top_pcb_y,
+        scale_mm=scale_mm,
     )
 
-    renderer.draw_outline()
-    renderer.draw_fold_lines()
-    renderer.draw_centre_lines()
+    if face_only:
+        renderer.draw_face_rect()
+        renderer.draw_centre_lines(face_only=True)
+    else:
+        renderer.draw_outline()
+        renderer.draw_fold_lines()
+        renderer.draw_centre_lines()
     renderer.draw_footprint_holes(board, fp_config, _log)
     renderer.draw_led_holes(board, fp_config, _log)
     renderer.draw_fixed_holes(fixed_holes, _log)
-    renderer.draw_title_block(project_name, enc_w, enc_h)
-    renderer.draw_scale_bar()
-    renderer.draw_footer(project_name, author, page_num, total_pages)
+    if not face_only:
+        renderer.draw_title_block(project_name, enc_w, enc_h)
+        renderer.draw_scale_bar()
+        renderer.draw_footer(project_name, author, page_num, total_pages)
 
     c.save()
     _log("  Enclosure template written.")
+
+
+def get_computed_holes(
+    board,
+    config: PanelConfig,
+    log: Optional[Callable] = None,
+) -> List[tuple]:
+    """Return [(label, dia_mm, enc_x, enc_y)] for all footprint-derived and back-LED holes.
+
+    Used by the drill editor to show auto-detected holes alongside fixed holes.
+    Returns an empty list if the board outline cannot be determined.
+    """
+    _log = log or (lambda msg: None)
+    try:
+        bbox = _board_bbox(board)
+        if bbox is None:
+            return []
+        board_cx = bbox.center().x / NM_PER_MM
+        fp_config = config.footprints
+        top_pcb_y = _find_top_anchor(board, fp_config)
+        if top_pcb_y is None:
+            top_pcb_y = bbox.center().y / NM_PER_MM
+
+        r = _EnclosureRenderer(None, 0, 0, 0, 0, 0, 0, 0, board_cx, top_pcb_y)
+        results: List[tuple] = []
+
+        for fp in safe_get_footprints(board, _log):
+            fp_id = get_fp_id(fp)
+            if fp_id not in fp_config:
+                continue
+            cfg = fp_config[fp_id]
+            rx, ry = r.fp_to_enc(fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM)
+            ex, ey = rx + cfg.offset_x, ry + cfg.offset_y
+            label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
+            results.append((label, cfg.hole_dia, ex, ey))
+
+        led_re = re.compile(r"^(D|LED)\d", re.IGNORECASE)
+        for fp in safe_get_footprints(board, _log):
+            ref = fp.reference_field.text.value
+            if not led_re.match(ref):
+                continue
+            if fp.layer != BoardLayer.BL_B_Cu:
+                continue
+            fp_id = get_fp_id(fp)
+            cfg = fp_config.get(fp_id, FootprintHoleConfig(hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED"))
+            ex, ey = r.fp_to_enc(fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM, cfg.offset_x, cfg.offset_y)
+            results.append((cfg.label or "LED", cfg.hole_dia, ex, ey))
+
+        return results
+    except Exception as exc:
+        _log(f"  get_computed_holes failed: {exc}")
+        return []
 
 
 def _find_top_anchor(board, fp_config: Dict) -> Optional[float]:

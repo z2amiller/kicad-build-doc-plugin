@@ -54,6 +54,8 @@ class DrillEditorDialog(wx.Dialog):
 
         self._build_ui()
         self._refresh_list()
+        if self._use_webview:
+            wx.CallAfter(self._on_preview, None)
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -84,12 +86,26 @@ class DrillEditorDialog(wx.Dialog):
         enc_row.Add(self._txt_enc_d, flag=wx.ALIGN_CENTER_VERTICAL)
         left.Add(enc_row, flag=wx.ALL, border=8)
 
-        # DataViewListCtrl
-        self._dvc = dv.DataViewListCtrl(panel, style=dv.DV_SINGLE | dv.DV_ROW_LINES)
-        self._dvc.AppendTextColumn("Label",   width=140, mode=dv.DATAVIEW_CELL_INERT)
+        # Auto-detected holes (read-only)
+        left.Add(wx.StaticText(panel, label="Auto-detected holes (from board footprints):"),
+                 flag=wx.LEFT | wx.TOP, border=8)
+        self._dvc_auto = dv.DataViewListCtrl(
+            panel, style=dv.DV_SINGLE | dv.DV_ROW_LINES | dv.DV_NO_HEADER)
+        self._dvc_auto.AppendTextColumn("Label",    width=140, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_auto.AppendTextColumn("Dia (mm)", width=70,  mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_auto.AppendTextColumn("X (mm)",   width=70,  mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_auto.AppendTextColumn("Y (mm)",   width=70,  mode=dv.DATAVIEW_CELL_INERT)
+        left.Add(self._dvc_auto, proportion=1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=8)
+        self._populate_auto_holes()
+
+        # Fixed holes (editable)
+        left.Add(wx.StaticText(panel, label="Fixed holes (manually specified):"),
+                 flag=wx.LEFT | wx.TOP, border=8)
+        self._dvc = dv.DataViewListCtrl(panel, style=dv.DV_SINGLE | dv.DV_ROW_LINES | dv.DV_NO_HEADER)
+        self._dvc.AppendTextColumn("Label",    width=140, mode=dv.DATAVIEW_CELL_INERT)
         self._dvc.AppendTextColumn("Dia (mm)", width=70,  mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc.AppendTextColumn("X (mm)",  width=70,  mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc.AppendTextColumn("Y (mm)",  width=70,  mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc.AppendTextColumn("X (mm)",   width=70,  mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc.AppendTextColumn("Y (mm)",   width=70,  mode=dv.DATAVIEW_CELL_INERT)
         self._dvc.Bind(dv.EVT_DATAVIEW_SELECTION_CHANGED, self._on_selection)
         left.Add(self._dvc, proportion=1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=8)
 
@@ -168,6 +184,16 @@ class DrillEditorDialog(wx.Dialog):
 
     # ── List management ───────────────────────────────────────────────────────
 
+    def _populate_auto_holes(self) -> None:
+        from enclosure_template import get_computed_holes
+        full = load_panel_config(self._board_path or "", self.plugin_dir)
+        holes = get_computed_holes(self.board, full)
+        self._dvc_auto.DeleteAllItems()
+        for label, dia, ex, ey in holes:
+            self._dvc_auto.AppendItem([label, f"{dia:.2f}", f"{ex:.2f}", f"{ey:.2f}"])
+        if not holes:
+            self._dvc_auto.AppendItem(["(none detected)", "", "", ""])
+
     def _refresh_list(self) -> None:
         self._dvc.DeleteAllItems()
         for h in self._rows:
@@ -227,6 +253,8 @@ class DrillEditorDialog(wx.Dialog):
         self._on_selection(None)
         self._txt_label.SetFocus()
         self._txt_label.SelectAll()
+        if self._use_webview:
+            self._on_preview(None)
 
     def _on_delete(self, event: Any) -> None:
         if self._selected is None:
@@ -236,6 +264,8 @@ class DrillEditorDialog(wx.Dialog):
         self._refresh_list()
         for ctrl in (self._txt_label, self._txt_dia, self._txt_x, self._txt_y):
             ctrl.Enable(False)
+        if self._use_webview:
+            self._on_preview(None)
 
     def _build_config(self) -> PanelConfig:
         """Build a PanelConfig from current dialog state (enclosure + fixed holes)."""
@@ -269,6 +299,7 @@ class DrillEditorDialog(wx.Dialog):
                 total_pages=1,
                 page_num=1,
                 out_path=tf.name,
+                face_only=True,
             )
             return tf.name
         except Exception as exc:
