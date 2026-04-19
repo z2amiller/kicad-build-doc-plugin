@@ -551,6 +551,55 @@ def get_computed_holes(
         return []
 
 
+def get_footprint_entries(
+    board,
+    config: PanelConfig,
+    log: Optional[Callable] = None,
+) -> List[dict]:
+    """Return one dict per footprint-derived hole for display/editing in the drill editor.
+
+    Keys: fp_id, label, hole_dia, offset_x, offset_y,
+          ref_enc_x (origin in enclosure coords before offset), ref_enc_y.
+    Returns an empty list if the board outline cannot be determined.
+    """
+    _log = log or (lambda msg: None)
+    try:
+        bbox = _board_bbox(board)
+        if bbox is None:
+            return []
+        board_cx = bbox.center().x / NM_PER_MM
+        fp_config = config.footprints
+        top_pcb_y = _find_top_anchor(board, fp_config)
+        if top_pcb_y is None:
+            top_pcb_y = bbox.center().y / NM_PER_MM
+
+        r = _EnclosureRenderer(None, 0, 0, 0, 0, 0, 0, 0, board_cx, top_pcb_y)
+        results: List[dict] = []
+
+        for fp in safe_get_footprints(board, _log):
+            fp_id = get_fp_id(fp)
+            if fp_id not in fp_config:
+                continue
+            cfg = fp_config[fp_id]
+            ref_x, ref_y = _fp_pcb_pos_mm(fp, cfg)
+            ref_enc_x, ref_enc_y = r.fp_to_enc(ref_x, ref_y)
+            label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
+            results.append({
+                "fp_id": fp_id,
+                "label": label,
+                "hole_dia": cfg.hole_dia,
+                "offset_x": cfg.offset_x,
+                "offset_y": cfg.offset_y,
+                "ref_enc_x": ref_enc_x,
+                "ref_enc_y": ref_enc_y,
+            })
+
+        return results
+    except Exception as exc:
+        _log(f"  get_footprint_entries failed: {exc}")
+        return []
+
+
 def _fp_pcb_pos_mm(fp, cfg) -> Tuple[float, float]:
     """Return PCB (x, y) in mm for a footprint, with pad centroid applied if configured."""
     x = fp.position.x / NM_PER_MM
