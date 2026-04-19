@@ -1,62 +1,74 @@
-import textwrap
+import json
 
-from panel_config import load_blurb, load_copyright, load_panel_config, load_text_file
+from panel_config import (
+    load_blurb,
+    load_copyright,
+    load_panel_config,
+    load_text_file,
+)
+
+
+# ── load_panel_config (JSON) ──────────────────────────────────────────────────
+
+def _write_config(path, data):
+    path.write_text(json.dumps(data))
 
 
 def test_enclosure_parsed(tmp_path):
-    (tmp_path / "external_footprints.txt").write_text(
-        textwrap.dedent("""\
-            ENCLOSURE 62 117 35
-            FIXED Footswitch 12.2 0 -45.2
-            _MB_switches:SPDT.LUGS 7.6 0 0
-        """)
-    )
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"width": 62, "height": 117, "depth": 35},
+        "fixed_holes": [{"label": "Footswitch", "dia": 12.2, "x": 0, "y": -45.2}],
+        "footprints": {"_MB_switches:SPDT.LUGS": {"hole_dia": 7.6, "offset_x": 0, "offset_y": 0}},
+    })
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
     assert result.enclosure.width == 62
     assert result.enclosure.height == 117
     assert result.enclosure.depth == 35
-    assert len(result.fixed_holes) == 1
-    assert result.fixed_holes[0].label == "Footswitch"
-    assert result.fixed_holes[0].dia == 12.2
-    assert "_MB_switches:SPDT.LUGS" in result.footprints
 
 
-def test_footprint_with_label(tmp_path):
-    (tmp_path / "external_footprints.txt").write_text("LED_THT:LED_D3.0mm 3.2 1.27 0 LED\n")
+def test_fixed_hole_fields(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "fixed_holes": [{"label": "FS", "dia": 12.2, "x": 0.0, "y": -45.2}],
+    })
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
-    fp = result.footprints["LED_THT:LED_D3.0mm"]
-    assert fp.hole_dia == 3.2
-    assert fp.offset_x == 1.27
-    assert fp.label == "LED"
+    hole = result.fixed_holes[0]
+    assert hole.label == "FS"
+    assert hole.dia == 12.2
+    assert hole.x == 0.0
+    assert hole.y == -45.2
 
 
-def test_footprint_without_label(tmp_path):
-    (tmp_path / "external_footprints.txt").write_text("_MB_switches:SPDT.LUGS 7.6 0 0\n")
+def test_footprint_parsed(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "footprints": {
+            "Panel:Alpha9mm": {"hole_dia": 7.0, "offset_x": 1.0, "offset_y": 2.0, "label": "Volume"},
+        },
+    })
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
-    fp = result.footprints["_MB_switches:SPDT.LUGS"]
-    assert fp.label is None
+    fp = result.footprints["Panel:Alpha9mm"]
+    assert fp.hole_dia == 7.0
+    assert fp.offset_x == 1.0
+    assert fp.offset_y == 2.0
+    assert fp.label == "Volume"
 
 
-def test_comments_ignored(tmp_path):
-    (tmp_path / "external_footprints.txt").write_text(
-        "# comment\nENCLOSURE 50 100  # inline comment\n"
-    )
+def test_footprint_label_optional(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "footprints": {"Lib:Part": {"hole_dia": 7.6, "offset_x": 0, "offset_y": 0}},
+    })
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
-    assert result.enclosure.width == 50
+    assert result.footprints["Lib:Part"].label is None
 
 
-def test_project_dir_takes_precedence(tmp_path):
-    plugin_dir = tmp_path / "plugin"
-    plugin_dir.mkdir()
-    project_dir = tmp_path / "project"
-    project_dir.mkdir()
-    (plugin_dir / "external_footprints.txt").write_text("ENCLOSURE 50 100\n")
-    (project_dir / "external_footprints.txt").write_text("ENCLOSURE 62 117\n")
-    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
-    assert result.enclosure.width == 62
+def test_depth_defaults_to_35(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"width": 62, "height": 117},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert result.enclosure.depth == 35.0
 
 
-def test_default_enclosure_when_no_config(tmp_path):
+def test_missing_config_uses_defaults(tmp_path):
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
     assert result.enclosure.width == 62
     assert result.enclosure.height == 117
@@ -64,14 +76,68 @@ def test_default_enclosure_when_no_config(tmp_path):
     assert result.fixed_holes == []
 
 
-def test_fixed_hole_fields(tmp_path):
-    (tmp_path / "external_footprints.txt").write_text("FIXED FS 12.2 0.0 -45.2\n")
-    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
-    hole = result.fixed_holes[0]
-    assert hole.label == "FS"
-    assert hole.dia == 12.2
-    assert hole.x == 0.0
-    assert hole.y == -45.2
+# ── merge behaviour ───────────────────────────────────────────────────────────
+
+def test_merge_enclosure_overridden(tmp_path):
+    plugin_dir = tmp_path / "plugin"
+    project_dir = tmp_path / "project"
+    plugin_dir.mkdir(); project_dir.mkdir()
+    _write_config(plugin_dir / "panel_config.json", {
+        "enclosure": {"width": 62, "height": 117, "depth": 35},
+        "footprints": {"Lib:A": {"hole_dia": 7.6, "offset_x": 0, "offset_y": 0}},
+    })
+    _write_config(project_dir / "panel_config.json", {
+        "enclosure": {"width": 112, "height": 60, "depth": 31},
+    })
+    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
+    assert result.enclosure.width == 112
+    assert result.enclosure.depth == 31
+    # global footprint still inherited
+    assert "Lib:A" in result.footprints
+
+
+def test_merge_footprints_additive(tmp_path):
+    plugin_dir = tmp_path / "plugin"
+    project_dir = tmp_path / "project"
+    plugin_dir.mkdir(); project_dir.mkdir()
+    _write_config(plugin_dir / "panel_config.json", {
+        "footprints": {"Lib:A": {"hole_dia": 7.0, "offset_x": 0, "offset_y": 0}},
+    })
+    _write_config(project_dir / "panel_config.json", {
+        "footprints": {"Lib:B": {"hole_dia": 8.0, "offset_x": 0, "offset_y": 0}},
+    })
+    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
+    assert "Lib:A" in result.footprints
+    assert "Lib:B" in result.footprints
+
+
+def test_merge_footprint_override(tmp_path):
+    plugin_dir = tmp_path / "plugin"
+    project_dir = tmp_path / "project"
+    plugin_dir.mkdir(); project_dir.mkdir()
+    _write_config(plugin_dir / "panel_config.json", {
+        "footprints": {"Lib:A": {"hole_dia": 7.0, "offset_x": 0, "offset_y": 0}},
+    })
+    _write_config(project_dir / "panel_config.json", {
+        "footprints": {"Lib:A": {"hole_dia": 9.0, "offset_x": 0, "offset_y": 0}},
+    })
+    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
+    assert result.footprints["Lib:A"].hole_dia == 9.0
+
+
+def test_merge_fixed_holes_concatenated(tmp_path):
+    plugin_dir = tmp_path / "plugin"
+    project_dir = tmp_path / "project"
+    plugin_dir.mkdir(); project_dir.mkdir()
+    _write_config(plugin_dir / "panel_config.json", {
+        "fixed_holes": [{"label": "Global", "dia": 12.2, "x": 0, "y": 0}],
+    })
+    _write_config(project_dir / "panel_config.json", {
+        "fixed_holes": [{"label": "Project", "dia": 8.0, "x": 10, "y": 10}],
+    })
+    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
+    labels = [h.label for h in result.fixed_holes]
+    assert labels == ["Global", "Project"]
 
 
 # ── load_text_file / load_copyright / load_blurb ──────────────────────────────

@@ -1,0 +1,29 @@
+{
+  "_comment": "Global panel defaults for Build Document Generator. Override per-project by placing a panel_config.json next to your .kicad_pcb file.",
+  "enclosure": {
+    "width": 62,
+    "height": 117,
+    "depth": 35
+  },
+  "footprints": {
+    "_MB_switches:SPDT.LUGS": {
+      "hole_dia": 7.6,
+      "offset_x": 0,
+      "offset_y": 0
+    },
+    "_MB_potentiometers:16MM_B.MOUNT": {
+      "hole_dia": 8.2,
+      "offset_x": 0,
+      "offset_y": 16
+    },
+    "LED_THT:LED_D3.0mm": {
+      "hole_dia": 3.2,
+      "offset_x": 1.27,
+      "offset_y": 0,
+      "label": "LED"
+    }
+  },
+  "fixed_holes": [
+    {"label": "Footswitch", "dia": 12.2, "x": 0, "y": -45.2}
+  ]
+}

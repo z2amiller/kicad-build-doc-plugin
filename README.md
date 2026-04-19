@@ -101,7 +101,7 @@ The value of the `Control` field is what gets printed in the build document, so 
 
 Controls are split into two groups on the cover page:
 
-- **External** — controls that appear on the enclosure panel (pots, jacks, footswitches, toggle switches). These are footprints listed in `external_footprints.txt` (see below).
+- **External** — controls that appear on the enclosure panel (pots, jacks, footswitches, toggle switches). These are footprints listed in `panel_config.json` (see below).
 - **Internal** — controls accessible inside the enclosure (trimmers, DIP switches, internal jumpers).
 
 A few component types are automatically excluded from the **internal** list even if they have a `Control` field: test points (`TP*`), LEDs and diodes (`LED*`, `D*`), and single-pad footprints. These are indicators or debug aids, not controls a builder needs to set.
@@ -112,53 +112,63 @@ A few component types are automatically excluded from the **internal** list even
 
 The plugin can generate a 1:1 scale drilling template for your enclosure — print it, tape it to the enclosure, and use it to mark hole positions before drilling.
 
-Hole positions are determined by the footprint positions on the board, transformed into enclosure coordinates. The plugin needs to know which footprints correspond to panel-mounted components and what hole size each requires. This is configured in a plain-text file called **`external_footprints.txt`**.
+Hole positions are determined by the footprint positions on the board, transformed into enclosure coordinates. The plugin needs to know which footprints correspond to panel-mounted components and what hole size each requires. This is configured in a JSON file called **`panel_config.json`**.
 
-### The `external_footprints.txt` file
+### The `panel_config.json` file
 
-The plugin ships with a default `external_footprints.txt` covering common footprints. You can override it per-project by placing a file with the same name in your project directory (next to the `.kicad_pcb` file) — the project-level file takes precedence.
+The plugin ships with a global default `panel_config.json` covering common footprints. You can add a per-project `panel_config.json` next to your `.kicad_pcb` file — it is **merged** on top of the global defaults, so you only need to specify what differs.
 
 #### File format
 
-Lines starting with `#` are comments. There are three types of entries:
+```json
+{
+  "enclosure": {
+    "width": 62,
+    "height": 117,
+    "depth": 35
+  },
+  "footprints": {
+    "LibraryName:FootprintName": {
+      "hole_dia": 7.6,
+      "offset_x": 0,
+      "offset_y": 0,
+      "label": "Optional label"
+    }
+  },
+  "fixed_holes": [
+    {"label": "Footswitch", "dia": 12.2, "x": 0, "y": -45.2}
+  ]
+}
+```
 
-**Enclosure dimensions:**
-```
-ENCLOSURE  width_mm  height_mm  [depth_mm]
-```
-Sets the physical size of the enclosure face. `depth_mm` defaults to 35 if omitted.
+**`enclosure`** — physical size of the enclosure face in mm. `depth` defaults to 35 if omitted.
 
-```
-ENCLOSURE 62 117 35
-```
-
-**Autodetection: Panel footprints** (external controls that need drilled holes):
-```
-LibraryName:FootprintName  hole_dia_mm  offset_x_mm  offset_y_mm  [label]
-```
-
-- `LibraryName:FootprintName` — the full KiCad footprint ID as it appears in the board (e.g. `_MB_switches:SPDT.LUGS`)
-- `hole_dia_mm` — the drill diameter in millimetres
-- `offset_x_mm`, `offset_y_mm` — shift the hole position relative to the footprint's origin on the PCB (use this when the physical hole should not be centred on the footprint origin)
+**`footprints`** — keyed by the full KiCad footprint ID (`Library:Name`). Each entry has:
+- `hole_dia` — drill diameter in mm
+- `offset_x`, `offset_y` — shift the hole position relative to the footprint origin (useful when the physical hole is not centred on the KiCad origin)
 - `label` — optional; if omitted, the footprint's `Control` field is used, then the reference
 
-```
-_MB_switches:SPDT.LUGS           7.6   0    0
-_MB_potentiometers:16MM_B.MOUNT  8.2   0    16
-Panel:Alpha9mm                   7.0   0    0       Volume
-LED_THT:LED_D3.0mm               3.2   1.27 0       LED
-```
+**`fixed_holes`** — holes at specific enclosure coordinates, not derived from PCB footprint positions. Coordinates are in mm from the enclosure centre; positive Y is up, positive X is right.
 
-**Fixed holes** (holes at specific enclosure coordinates, not derived from PCB position):
-```
-FIXED  label  hole_dia_mm  x_mm  y_mm
-```
+### Merge behaviour
 
-Coordinates are in mm measured from the enclosure centre. Positive Y is up, positive X is right.
+When a per-project `panel_config.json` is present, it is merged with the global defaults:
 
-```
-FIXED  Footswitch  12.2   0      -45.2
-FIXED  LED          3.2  -20.5   -45.2    
+| Section | Behaviour |
+|---------|-----------|
+| `enclosure` | Project value replaces global entirely |
+| `footprints` | Project entries add or override individual global entries; unmentioned footprints are inherited |
+| `fixed_holes` | Project entries are appended after global entries |
+
+A minimal per-project file that just changes the enclosure and adds a fixed footswitch hole:
+
+```json
+{
+  "enclosure": {"width": 112, "height": 60, "depth": 31},
+  "fixed_holes": [
+    {"label": "Bypass", "dia": 12.2, "x": 0, "y": -22}
+  ]
+}
 ```
 
 ### How hole positions are calculated
@@ -168,36 +178,11 @@ Footprint positions are read from the PCB in millimetres. The plugin:
 1. Mirrors the X axis (the panel is viewed from outside, which is the opposite of looking at the PCB front)
 2. Anchors the Y axis so the topmost external control row lands 38 mm above the enclosure centre — a reasonable default for most stompbox layouts
 
-The `offset_x` and `offset_y` values in `external_footprints.txt` are applied **after** this coordinate transform. Use them when a component's mounting hole is not at its KiCad footprint origin — for example, an Alpha pot where the mechanical hole is offset from the electrical origin, or an LED whose hole is beside the component body.
-
-### Per-project overrides
-
-Place an `external_footprints.txt` file in the same directory as your `.kicad_pcb` file. It completely replaces the plugin default for that project.
-
-**Common reasons to add a per-project override:**
-
-- Your enclosure is a non-standard size
-- You need fixed holes for a DC jack or footswitch at a specific position (e.g. double footswitches)
-- A custom footprint has different hole sizing than the default
-- You want to override only the enclosure dimensions and keep the footprint list as-is
-
-Example per-project `external_footprints.txt`:
-
-```
-# Tayda 1590B-style enclosure
-ENCLOSURE 112 60 31
-
-# Standard panel footprints
-_MB_switches:SPDT.LUGS  7.6  0  0
-Panel:Alpha9mm           7.0  0  0
-
-# Fixed holes — bypass footswitch is at a fixed panel position
-FIXED  Bypass  12.2  0  -22
-```
+The `offset_x` and `offset_y` values are applied **after** this coordinate transform. Use them when a component's mounting hole is not at its KiCad footprint origin — for example, a pot where the mechanical hole is offset from the electrical origin.
 
 ### Autodetection: Back-panel LEDs
 
-LEDs mounted on the **back copper layer** (B.Cu) are treated as panel indicators and automatically get a hole in the drilling template — no entry in `external_footprints.txt` required. The default hole diameter is 3.2 mm. To override the size for a specific LED footprint, add it to `external_footprints.txt` as a normal footprint entry.
+LEDs mounted on the **back copper layer** (B.Cu) are treated as panel indicators and automatically get a hole in the drilling template — no `panel_config.json` entry required. The default hole diameter is 3.2 mm. To override the size for a specific LED footprint, add it to the `footprints` section.
 
 ---
 

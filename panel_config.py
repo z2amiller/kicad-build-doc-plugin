@@ -1,6 +1,7 @@
-"""Parser for external_footprints.txt panel configuration file."""
+"""Parser for panel_config.json panel configuration files."""
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
@@ -59,68 +60,99 @@ def load_blurb(project_dir: str) -> Optional[str]:
     return load_text_file("builddoc_blurb.txt", [project_dir])
 
 
+def _parse_json_config(path: str) -> dict:
+    with open(path) as fh:
+        return json.load(fh)
+
+
+def _enclosure_from_dict(d: dict) -> EnclosureConfig:
+    return EnclosureConfig(
+        width=float(d["width"]),
+        height=float(d["height"]),
+        depth=float(d.get("depth", 35.0)),
+    )
+
+
+def _footprint_from_dict(d: dict) -> FootprintHoleConfig:
+    return FootprintHoleConfig(
+        hole_dia=float(d["hole_dia"]),
+        offset_x=float(d.get("offset_x", 0.0)),
+        offset_y=float(d.get("offset_y", 0.0)),
+        label=d.get("label") or None,
+    )
+
+
+def _fixed_hole_from_dict(d: dict) -> FixedHole:
+    return FixedHole(
+        label=str(d["label"]),
+        dia=float(d["dia"]),
+        x=float(d["x"]),
+        y=float(d["y"]),
+    )
+
+
+def _merge_configs(base: dict, override: dict) -> dict:
+    """Merge override into base with section-aware semantics.
+
+    - enclosure: override replaces base entirely if present
+    - footprints: dict merge — override entries add/replace individual footprints
+    - fixed_holes: concatenated (base first, then override additions)
+    """
+    result: dict = {}
+
+    result["enclosure"] = override.get("enclosure", base.get("enclosure", {}))
+
+    base_fps = base.get("footprints", {})
+    override_fps = override.get("footprints", {})
+    result["footprints"] = {**base_fps, **override_fps}
+
+    result["fixed_holes"] = list(base.get("fixed_holes", [])) + list(override.get("fixed_holes", []))
+
+    return result
+
+
 def load_panel_config(
     board_path: str,
     plugin_dir: str,
     log: Optional[Callable] = None,
 ) -> PanelConfig:
-    """Parse the panel config from external_footprints.txt.
+    """Load and merge panel config from panel_config.json files.
 
-    Searches the project directory first, then the plugin directory, so that
-    per-project overrides shadow the plugin defaults.
+    Loads the global default from the plugin directory, then merges any
+    per-project panel_config.json found next to the board file on top of it.
 
-    Line formats (all after optional # comments):
-      ENCLOSURE  width_mm  height_mm  [depth_mm]
-      FIXED      label     hole_dia   x   y
-      Lib:Name   hole_dia  offset_x   offset_y  [label]
+    Merge semantics:
+      - enclosure: project value replaces global entirely
+      - footprints: project entries add/override individual global entries
+      - fixed_holes: project entries are appended after global entries
     """
     _log = log or (lambda msg: None)
-    enclosure = EnclosureConfig(width=62, height=117, depth=35.0)
-    footprints: Dict[str, FootprintHoleConfig] = {}
-    fixed_holes: List[FixedHole] = []
 
+    global_path = os.path.join(plugin_dir, "panel_config.json")
     project_dir = os.path.dirname(board_path)
-    for directory in [project_dir, plugin_dir]:
-        candidate = os.path.join(directory, "external_footprints.txt")
-        if not os.path.exists(candidate):
-            continue
-        with open(candidate) as fh:
-            for raw in fh:
-                line = raw.split("#", 1)[0].strip()
-                if not line:
-                    continue
-                parts = line.split()
-                kw = parts[0].upper()
-                if kw == "ENCLOSURE" and len(parts) >= 3:
-                    enclosure = EnclosureConfig(
-                        width=float(parts[1]),
-                        height=float(parts[2]),
-                        depth=float(parts[3]) if len(parts) >= 4 else 35.0,
-                    )
-                elif kw == "FIXED" and len(parts) >= 5:
-                    fixed_holes.append(FixedHole(
-                        label=parts[1],
-                        dia=float(parts[2]),
-                        x=float(parts[3]),
-                        y=float(parts[4]),
-                    ))
-                elif ":" in parts[0]:
-                    fp_id = parts[0]
-                    if len(parts) >= 4:
-                        footprints[fp_id] = FootprintHoleConfig(
-                            hole_dia=float(parts[1]),
-                            offset_x=float(parts[2]),
-                            offset_y=float(parts[3]),
-                            label=parts[4] if len(parts) >= 5 else None,
-                        )
-                    else:
-                        footprints[fp_id] = FootprintHoleConfig(
-                            hole_dia=8.0,
-                            offset_x=0.0,
-                            offset_y=0.0,
-                            label=None,
-                        )
-        _log(f"  Loaded panel config from {candidate}")
-        break
+    project_path = os.path.join(project_dir, "panel_config.json")
+
+    base: dict = {}
+    if os.path.exists(global_path):
+        base = _parse_json_config(global_path)
+        _log(f"  Loaded global panel config from {global_path}")
+
+    merged = base
+    if os.path.exists(project_path):
+        project = _parse_json_config(project_path)
+        merged = _merge_configs(base, project)
+        _log(f"  Merged project panel config from {project_path}")
+
+    enc_dict = merged.get("enclosure")
+    enclosure = _enclosure_from_dict(enc_dict) if enc_dict else EnclosureConfig(width=62, height=117, depth=35.0)
+
+    footprints: Dict[str, FootprintHoleConfig] = {
+        fp_id: _footprint_from_dict(cfg)
+        for fp_id, cfg in merged.get("footprints", {}).items()
+    }
+
+    fixed_holes: List[FixedHole] = [
+        _fixed_hole_from_dict(h) for h in merged.get("fixed_holes", [])
+    ]
 
     return PanelConfig(enclosure=enclosure, footprints=footprints, fixed_holes=fixed_holes)
