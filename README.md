@@ -190,6 +190,48 @@ LEDs mounted on the **back copper layer** (B.Cu) are treated as panel indicators
 
 ---
 
+### Live enclosure preview
+
+When `wx.html2` (the KiCad WebView component) is available, the main plugin dialog shows a live preview of the drilling template on the right-hand side. It renders automatically when the dialog opens, and refreshes whenever you close the drill editor or footprint rules editor.
+
+Use the preview to catch common issues before generating the final PDF:
+
+- **Wrong enclosure size** — if holes cluster near the top or bottom edge, or land outside the outline, the enclosure dimensions are likely off. Open **Edit Enclosure Drills…** and select the correct preset, or adjust Width/Height manually.
+- **Missing holes** — if a panel-mounted control has no corresponding hole in the preview, its footprint type is not in the global rules. See [Footprint rules editor](#footprint-rules-editor) below.
+- **Wrong hole position** — if a hole is present but in the wrong place, the `offset_x`/`offset_y` for that footprint needs adjustment. Open **Edit Footprint Rules…**, select the rule, and tweak the offsets; the preview updates as you type.
+
+---
+
+### Footprint rules editor
+
+Click **Edit Footprint Rules…** in the main dialog to open the rules editor. It scans your board and compares every footprint that has a `Control` field against the global rules database.
+
+**Top section — unrecognized footprints:** any footprint type found on the board that has no rule is listed here, with all the reference designators that use it and the `Control` label from the first one found. These are the footprints that would produce no hole in the drilling template.
+
+To add a rule for a candidate:
+1. Click it in the top list — the edit fields fill in with defaults (8 mm diameter, zero offsets, the `Control` value as the label).
+2. Adjust the hole diameter and offsets as needed. The preview updates automatically so you can see where the hole lands relative to your other controls.
+3. Click **Add as Global Rule ↓** — the footprint moves to the existing-rules list below and will appear in all future projects that use that footprint type.
+
+**Bottom section — existing global rules:** shows every rule currently in the global database. Selecting a row lets you edit its settings live; the preview highlights that footprint's hole in red so you can verify the position.
+
+#### Handling unrecognized footprints without adding a global rule
+
+Not every missing footprint needs a permanent global rule. Two alternatives:
+
+- **Fixed hole** — if the hole position is specific to this project (e.g. a second footswitch at a non-standard location), add it as a `fixed_holes` entry in the project's `panel_config.json` via **Edit Enclosure Drills…**. Fixed holes are placed by enclosure coordinates, not footprint position.
+- **Null override** — if a footprint is in the global rules but you don't want a hole for it on this project, add it to the project `panel_config.json` `footprints` section with a value of `null`:
+
+```json
+{
+  "footprints": {
+    "Library:FootprintName": null
+  }
+}
+```
+
+---
+
 ### Enclosure presets
 
 The plugin ships with built-in presets for common Hammond/Tayda enclosures. Selecting a preset fills in the enclosure dimensions and provides standard top-face (Side B) hole layouts for jacks and DC power.
