@@ -7,11 +7,24 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
 
+# Interior face dimensions (mm) for standard Hammond/Tayda enclosures.
+# width = narrower dimension (left-right on front face),
+# height = taller dimension (top-bottom on front face).
+ENCLOSURE_PRESETS: Dict[str, tuple] = {
+    "125B":   (62.0,  119.5, 31.0),   # width, height, depth
+    "1590B":  (60.0,  112.0, 31.0),
+    "1590BB": (94.0,  119.5, 34.0),
+    "1590A":  (38.0,   92.0, 31.0),
+    "1590XX": (121.0, 145.0, 37.0),
+}
+
+
 @dataclass
 class EnclosureConfig:
     width: float
     height: float
     depth: float = 35.0
+    preset: Optional[str] = None   # e.g. "125B"; None = custom dimensions
 
 
 @dataclass
@@ -67,10 +80,20 @@ def _parse_json_config(path: str) -> dict:
 
 
 def _enclosure_from_dict(d: dict) -> EnclosureConfig:
+    preset = d.get("preset") or None
+    if preset and preset in ENCLOSURE_PRESETS:
+        w, h, dep = ENCLOSURE_PRESETS[preset]
+        return EnclosureConfig(
+            width=float(d.get("width", w)),
+            height=float(d.get("height", h)),
+            depth=float(d.get("depth", dep)),
+            preset=preset,
+        )
     return EnclosureConfig(
         width=float(d["width"]),
         height=float(d["height"]),
         depth=float(d.get("depth", 35.0)),
+        preset=None,
     )
 
 

@@ -1,6 +1,7 @@
 import json
 
 from panel_config import (
+    ENCLOSURE_PRESETS,
     load_blurb,
     load_copyright,
     load_panel_config,
@@ -68,6 +69,58 @@ def test_footprint_use_pad_centroid_defaults_false(tmp_path):
     })
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
     assert result.footprints["Lib:Part"].use_pad_centroid is False
+
+
+# ── Enclosure presets ─────────────────────────────────────────────────────────
+
+def test_preset_table_has_expected_sizes():
+    assert "125B" in ENCLOSURE_PRESETS
+    assert "1590B" in ENCLOSURE_PRESETS
+    assert "1590BB" in ENCLOSURE_PRESETS
+    assert "1590A" in ENCLOSURE_PRESETS
+    assert "1590XX" in ENCLOSURE_PRESETS
+
+
+def test_preset_resolves_dimensions(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"preset": "1590B"},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    w, h, d = ENCLOSURE_PRESETS["1590B"]
+    assert result.enclosure.width == w
+    assert result.enclosure.height == h
+    assert result.enclosure.depth == d
+    assert result.enclosure.preset == "1590B"
+
+
+def test_preset_allows_dimension_override(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"preset": "125B", "depth": 40.0},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    w, h, _ = ENCLOSURE_PRESETS["125B"]
+    assert result.enclosure.width == w
+    assert result.enclosure.height == h
+    assert result.enclosure.depth == 40.0
+
+
+def test_unknown_preset_falls_back_to_explicit_dimensions(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"preset": "CUSTOM_BOX", "width": 55.0, "height": 100.0},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert result.enclosure.width == 55.0
+    assert result.enclosure.height == 100.0
+    assert result.enclosure.preset is None
+
+
+def test_no_preset_key_uses_explicit_dimensions(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"width": 62, "height": 117, "depth": 35},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert result.enclosure.preset is None
+    assert result.enclosure.width == 62
 
 
 def test_footprint_label_optional(tmp_path):
