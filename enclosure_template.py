@@ -197,8 +197,9 @@ class _EnclosureRenderer:
             cfg = fp_config[fp_id]
             ref_x, ref_y = _fp_pcb_pos_mm(fp, cfg)
             rx, ry = self.fp_to_enc(ref_x, ref_y)
-            ex = rx + cfg.offset_x
-            ey = ry + cfg.offset_y
+            enc_dx, enc_dy = _fp_enc_offset(fp, cfg)
+            ex = rx + enc_dx
+            ey = ry + enc_dy
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
             ref = fp.reference_field.text.value
             highlighted = (
@@ -230,12 +231,10 @@ class _EnclosureRenderer:
                 fp_id,
                 FootprintHoleConfig(hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED"),
             )
-            ex, ey = self.fp_to_enc(
-                fp.position.x / NM_PER_MM,
-                fp.position.y / NM_PER_MM,
-                cfg.offset_x,
-                cfg.offset_y,
-            )
+            raw_x, raw_y = self.fp_to_enc(fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM)
+            enc_dx, enc_dy = _fp_enc_offset(fp, cfg)
+            ex = raw_x + enc_dx
+            ey = raw_y + enc_dy
             label = cfg.label or "LED"
             self.draw_hole(ex, ey, cfg.hole_dia, label)
             log(
@@ -536,7 +535,8 @@ def get_computed_holes(
             cfg = fp_config[fp_id]
             ref_x, ref_y = _fp_pcb_pos_mm(fp, cfg)
             rx, ry = r.fp_to_enc(ref_x, ref_y)
-            ex, ey = rx + cfg.offset_x, ry + cfg.offset_y
+            enc_dx, enc_dy = _fp_enc_offset(fp, cfg)
+            ex, ey = rx + enc_dx, ry + enc_dy
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
             results.append((label, cfg.hole_dia, ex, ey))
 
@@ -602,12 +602,30 @@ def get_footprint_entries(
                 "offset_y": cfg.offset_y,
                 "ref_enc_x": ref_enc_x,
                 "ref_enc_y": ref_enc_y,
+                "orientation_rad": fp.orientation.to_radians() if hasattr(fp, "orientation") else 0.0,
             })
 
         return results
     except Exception as exc:
         _log(f"  get_footprint_entries failed: {exc}")
         return []
+
+
+def _fp_enc_offset(fp, cfg) -> Tuple[float, float]:
+    """Return enclosure-space (dx, dy) for cfg's offset_x/y, rotated by fp's orientation.
+
+    Offsets are defined in footprint-local space.  Rotating by fp.orientation gives the
+    PCB-frame delta; negating both components converts to enclosure frame (mirror X,
+    enclosure Y is up = PCB Y negated).
+    """
+    try:
+        a = fp.orientation.to_radians()
+    except Exception:
+        a = 0.0
+    cos_a, sin_a = math.cos(a), math.sin(a)
+    pcb_dx = cos_a * cfg.offset_x - sin_a * cfg.offset_y
+    pcb_dy = sin_a * cfg.offset_x + cos_a * cfg.offset_y
+    return (-pcb_dx, -pcb_dy)
 
 
 def _fp_pcb_pos_mm(fp, cfg) -> Tuple[float, float]:
@@ -662,8 +680,8 @@ def _pad_centroid_offset_mm(fp) -> tuple:
 def _find_top_anchor(board, fp_config: Dict) -> Optional[float]:
     """Find the minimum effective PCB Y among external-control footprints.
 
-    'Effective Y' is the footprint origin Y minus the enclosure offset_y, so
-    we anchor on the topmost *hole* rather than the topmost footprint *origin*.
+    Uses the hole's actual PCB Y (footprint origin + rotated offset Y component)
+    so we anchor on the topmost *hole* rather than the topmost footprint *origin*.
     """
     top_pcb_y: Optional[float] = None
     for fp in safe_get_footprints(board):
@@ -671,7 +689,12 @@ def _find_top_anchor(board, fp_config: Dict) -> Optional[float]:
         if fp_id not in fp_config:
             continue
         cfg = fp_config[fp_id]
-        effective_y = fp.position.y / NM_PER_MM - cfg.offset_y
+        try:
+            a = fp.orientation.to_radians()
+        except Exception:
+            a = 0.0
+        pcb_off_y = math.sin(a) * cfg.offset_x + math.cos(a) * cfg.offset_y
+        effective_y = fp.position.y / NM_PER_MM + pcb_off_y
         if top_pcb_y is None or effective_y < top_pcb_y:
             top_pcb_y = effective_y
     return top_pcb_y

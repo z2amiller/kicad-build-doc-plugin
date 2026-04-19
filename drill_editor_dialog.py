@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import sys
@@ -23,22 +24,28 @@ from panel_config import (
 class _FpEntry:
     """One footprint-derived hole being displayed/edited in the drill editor."""
     fp_id: str
-    reference: str   # e.g. "RV1" — unique instance identifier
+    reference: str        # e.g. "RV1" — unique instance identifier
     label: str
     hole_dia: float
-    offset_x: float
+    offset_x: float       # footprint-local offset (follows fp rotation)
     offset_y: float
-    ref_enc_x: float  # enclosure coords of footprint origin, before offset (constant)
+    ref_enc_x: float      # enclosure coords of footprint origin, before offset (constant)
     ref_enc_y: float
+    orientation_rad: float = 0.0   # fp board orientation, for offset rotation
     use_pad_centroid: bool = False
+    excluded: bool = False         # True = write null override to project config
 
     @property
     def enc_x(self) -> float:
-        return self.ref_enc_x + self.offset_x
+        cos_a = math.cos(self.orientation_rad)
+        sin_a = math.sin(self.orientation_rad)
+        return self.ref_enc_x - (cos_a * self.offset_x - sin_a * self.offset_y)
 
     @property
     def enc_y(self) -> float:
-        return self.ref_enc_y + self.offset_y
+        cos_a = math.cos(self.orientation_rad)
+        sin_a = math.sin(self.orientation_rad)
+        return self.ref_enc_y - (sin_a * self.offset_x + cos_a * self.offset_y)
 
 _PRESET_CHOICES = ["Custom"] + list(ENCLOSURE_PRESETS.keys())
 
@@ -189,12 +196,18 @@ class DrillEditorDialog(wx.Dialog):
         fp_sizer.Add(fp_grid, flag=wx.ALL, border=6)
         fp_hint = wx.StaticText(
             panel,
-            label="Offsets shift the hole relative to the footprint origin in enclosure space.\n"
-                  "+X = right, +Y = up. Select a row above to edit. Apply saves to project.",
+            label="Offsets are in footprint-local space and rotate with the footprint.\n"
+                  "+X = footprint's right axis, +Y = footprint's up axis. Apply saves to project.",
         )
         fp_hint.SetForegroundColour(wx.Colour(100, 100, 100))
         fp_hint.SetFont(fp_hint.GetFont().Scaled(0.85))
         fp_sizer.Add(fp_hint, flag=wx.LEFT | wx.BOTTOM, border=6)
+
+        self._btn_fp_exclude = wx.Button(panel, label="Exclude from Holes")
+        self._btn_fp_exclude.Bind(wx.EVT_BUTTON, self._on_fp_exclude)
+        self._btn_fp_exclude.Enable(False)
+        fp_sizer.Add(self._btn_fp_exclude, flag=wx.LEFT | wx.BOTTOM, border=6)
+
         left.Add(fp_sizer, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=8)
 
         for ctrl in (self._txt_fp_dia, self._txt_fp_ox, self._txt_fp_oy):
@@ -343,6 +356,7 @@ class DrillEditorDialog(wx.Dialog):
                 offset_y=e["offset_y"],
                 ref_enc_x=e["ref_enc_x"],
                 ref_enc_y=e["ref_enc_y"],
+                orientation_rad=e.get("orientation_rad", 0.0),
                 use_pad_centroid=orig_cfg.use_pad_centroid if orig_cfg else False,
             )
             self._fp_entries.append(fe)
@@ -357,14 +371,14 @@ class DrillEditorDialog(wx.Dialog):
     def _refresh_fp_list(self) -> None:
         self._dvc_auto.DeleteAllItems()
         for e in self._fp_entries:
-            self._dvc_auto.AppendItem([
-                e.label,
-                f"{e.hole_dia:.2f}",
-                f"{e.enc_x:.2f}",
-                f"{e.enc_y:.2f}",
-                f"{e.offset_x:+.2f}",
-                f"{e.offset_y:+.2f}",
-            ])
+            label = f"[excl] {e.label}" if e.excluded else e.label
+            x_str = y_str = ox_str = oy_str = ""
+            if not e.excluded:
+                x_str  = f"{e.enc_x:.2f}"
+                y_str  = f"{e.enc_y:.2f}"
+                ox_str = f"{e.offset_x:+.2f}"
+                oy_str = f"{e.offset_y:+.2f}"
+            self._dvc_auto.AppendItem([label, f"{e.hole_dia:.2f}", x_str, y_str, ox_str, oy_str])
         if not self._fp_entries:
             self._dvc_auto.AppendItem(["(none detected)", "", "", "", "", ""])
 
@@ -497,6 +511,7 @@ class DrillEditorDialog(wx.Dialog):
             self._fp_selected = None
             for ctrl in (self._txt_fp_dia, self._txt_fp_ox, self._txt_fp_oy):
                 ctrl.Enable(False)
+            self._btn_fp_exclude.Enable(False)
             return
         self._fp_selected = row
         e = self._fp_entries[row]
@@ -505,8 +520,11 @@ class DrillEditorDialog(wx.Dialog):
         self._txt_fp_ox.SetValue(f"{e.offset_x:.2f}")
         self._txt_fp_oy.SetValue(f"{e.offset_y:.2f}")
         self._updating = False
+        editable = not e.excluded
         for ctrl in (self._txt_fp_dia, self._txt_fp_ox, self._txt_fp_oy):
-            ctrl.Enable(True)
+            ctrl.Enable(editable)
+        self._btn_fp_exclude.SetLabel("Re-enable Hole" if e.excluded else "Exclude from Holes")
+        self._btn_fp_exclude.Enable(True)
         if self._use_webview:
             self._on_preview(None)
 
@@ -532,6 +550,34 @@ class DrillEditorDialog(wx.Dialog):
         if self._fp_preview_timer is not None:
             self._fp_preview_timer.Stop()
         self._fp_preview_timer = wx.CallLater(350, self._on_preview, None)
+
+    def _on_fp_exclude(self, event: Any) -> None:
+        if self._fp_selected is None:
+            return
+        e = self._fp_entries[self._fp_selected]
+        e.excluded = not e.excluded
+        self._btn_fp_exclude.SetLabel("Re-enable Hole" if e.excluded else "Exclude from Holes")
+        editable = not e.excluded
+        for ctrl in (self._txt_fp_dia, self._txt_fp_ox, self._txt_fp_oy):
+            ctrl.Enable(editable)
+        # Update list row label
+        row = self._fp_selected
+        label = f"[excl] {e.label}" if e.excluded else e.label
+        self._dvc_auto.SetTextValue(label, row, 0)
+        for col in (2, 3, 4, 5):
+            self._dvc_auto.SetTextValue("" if e.excluded else self._dvc_auto.GetTextValue(row, col), row, col)
+        # Refresh the row cleanly
+        self._dvc_auto.SetTextValue(label, row, 0)
+        if not e.excluded:
+            self._dvc_auto.SetTextValue(f"{e.enc_x:.2f}", row, 2)
+            self._dvc_auto.SetTextValue(f"{e.enc_y:.2f}", row, 3)
+            self._dvc_auto.SetTextValue(f"{e.offset_x:+.2f}", row, 4)
+            self._dvc_auto.SetTextValue(f"{e.offset_y:+.2f}", row, 5)
+        else:
+            for col in (2, 3, 4, 5):
+                self._dvc_auto.SetTextValue("", row, col)
+        if self._use_webview:
+            self._on_preview(None)
 
     def _current_preset(self) -> Optional[str]:
         """Return the selected preset name, or None for Custom."""
@@ -559,7 +605,9 @@ class DrillEditorDialog(wx.Dialog):
         # Apply current in-dialog fp_entry overrides on top of the loaded footprints.
         merged_fps = dict(full.footprints)
         for e in self._fp_entries:
-            if e.fp_id in merged_fps:
+            if e.excluded:
+                merged_fps.pop(e.fp_id, None)  # suppress hole for excluded footprints
+            elif e.fp_id in merged_fps:
                 orig = merged_fps[e.fp_id]
                 merged_fps[e.fp_id] = FootprintHoleConfig(
                     hole_dia=e.hole_dia,
@@ -693,6 +741,12 @@ class DrillEditorDialog(wx.Dialog):
         # from what was loaded (either from the global config or a prior project override).
         fp_overrides: dict = existing.get("footprints", {}) or {}
         for e in self._fp_entries:
+            if e.excluded:
+                fp_overrides[e.fp_id] = None   # null = suppress this footprint's hole
+                continue
+            # Remove any previously-written null override if the user re-enabled it.
+            if fp_overrides.get(e.fp_id) is None:
+                fp_overrides.pop(e.fp_id, None)
             orig = self._fp_originals.get(e.fp_id)
             if orig is None:
                 continue
