@@ -6,28 +6,15 @@ import wx
 import os
 from typing import Optional
 
-from footprint_utils import get_board_path
+from footprint_utils import check_webview, get_board_path
 from panel_config import load_blurb
-
-_WEBVIEW_AVAILABLE = None  # type: Optional[bool]
-
-
-def _check_webview() -> bool:
-    global _WEBVIEW_AVAILABLE
-    if _WEBVIEW_AVAILABLE is None:
-        try:
-            import wx.html2  # noqa: F401
-            _WEBVIEW_AVAILABLE = True
-        except Exception:
-            _WEBVIEW_AVAILABLE = False
-    return _WEBVIEW_AVAILABLE
 
 
 class BuildDocDialog(wx.Dialog):
     def __init__(self, parent, board):
         _ver_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")
         _ver = open(_ver_file).read().strip() if os.path.exists(_ver_file) else "dev"
-        self._use_webview = _check_webview()
+        self._use_webview = check_webview()
         w = 820 if self._use_webview else 500
         super().__init__(parent, title=f"Build Document Generator v{_ver}", size=(w, 580))
         self.board = board

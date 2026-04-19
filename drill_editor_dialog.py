@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Set
 import wx
 import wx.dataview as dv
 
-from footprint_utils import get_board_path
+from footprint_utils import check_webview, get_board_path
 from panel_config import (
     ENCLOSURE_PRESETS, EnclosureConfig, FixedHole, FootprintHoleConfig,
     PanelConfig, SideBHole, load_global_config, load_panel_config,
@@ -54,20 +54,6 @@ COL_DIA   = 1
 COL_X     = 2
 COL_Y     = 3
 
-_WEBVIEW_AVAILABLE: Optional[bool] = None
-
-
-def _check_webview() -> bool:
-    global _WEBVIEW_AVAILABLE
-    if _WEBVIEW_AVAILABLE is None:
-        try:
-            import wx.html2  # noqa: F401
-            _WEBVIEW_AVAILABLE = True
-        except Exception:
-            _WEBVIEW_AVAILABLE = False
-    return _WEBVIEW_AVAILABLE
-
-
 class DrillEditorDialog(wx.Dialog):
     def __init__(self, parent, board, plugin_dir: str) -> None:
         super().__init__(parent, title="Edit Enclosure Drills", size=(800, 820),
@@ -96,7 +82,7 @@ class DrillEditorDialog(wx.Dialog):
         self._fp_preview_timer: Optional[wx.CallLater] = None
         self._updating = False
         self._preview_path: Optional[str] = None
-        self._use_webview = _check_webview()
+        self._use_webview = check_webview()
 
         self._build_ui()
         self._refresh_list()

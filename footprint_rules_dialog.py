@@ -15,11 +15,13 @@ from typing import Any, Dict, List, Optional
 import wx
 import wx.dataview as dv
 
-from footprint_utils import get_board_path, get_field, get_fp_id, safe_get_footprints
+from footprint_utils import (
+    check_webview, get_board_path, get_field, get_fp_id, safe_get_footprints,
+    _is_led_footprint,
+)
 from panel_config import ENCLOSURE_PRESETS, FootprintHoleConfig, load_panel_config
 
 _LED_RE = re.compile(r"^(D|LED)\d", re.IGNORECASE)
-_LED_LIB_RE = re.compile(r"^(LED_SMD|LED_THT|Diode_SMD|Diode_THT)", re.IGNORECASE)
 
 # Columns for the candidates list
 _CC_ID    = 0
@@ -62,7 +64,7 @@ class FootprintRulesDialog(wx.Dialog):
         self._updating = False
         self._preview_path: Optional[str] = None
 
-        self._use_webview = self._check_webview()
+        self._use_webview = check_webview()
         self._preview_timer: Optional[wx.Timer] = None
         self._load_rules()
         self._scan_candidates()
@@ -71,16 +73,6 @@ class FootprintRulesDialog(wx.Dialog):
         self._refresh_rules()
         if self._use_webview:
             wx.CallAfter(self._on_preview, None)
-
-    # ── WebView ───────────────────────────────────────────────────────────────
-
-    @staticmethod
-    def _check_webview() -> bool:
-        try:
-            import wx.html2  # noqa: F401
-            return True
-        except Exception:
-            return False
 
     # ── I/O ──────────────────────────────────────────────────────────────────
 
@@ -170,11 +162,8 @@ class FootprintRulesDialog(wx.Dialog):
             # Skip front-copper LEDs and LED library footprints — not panel holes
             if _LED_RE.match(ref):
                 continue
-            try:
-                if _LED_LIB_RE.match(fp.definition.id.library):
-                    continue
-            except Exception:
-                pass
+            if _is_led_footprint(fp):
+                continue
 
             if not label:
                 continue
