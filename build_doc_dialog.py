@@ -86,7 +86,10 @@ class BuildDocDialog(wx.Dialog):
         editor_row.Add(btn_edit, flag=wx.RIGHT, border=8)
         btn_drills = wx.Button(panel, label="Edit Enclosure Drills…")
         btn_drills.Bind(wx.EVT_BUTTON, self.on_edit_drills)
-        editor_row.Add(btn_drills)
+        editor_row.Add(btn_drills, flag=wx.RIGHT, border=8)
+        btn_rules = wx.Button(panel, label="Edit Footprint Rules…")
+        btn_rules.Bind(wx.EVT_BUTTON, self.on_edit_footprint_rules)
+        editor_row.Add(btn_rules)
         vbox.Add(editor_row, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
 
         # ── Schematic path (optional override) ───────────────────
@@ -165,6 +168,17 @@ class BuildDocDialog(wx.Dialog):
         except Exception:
             import traceback
             wx.MessageBox(traceback.format_exc(), "Drill Editor Error", wx.OK | wx.ICON_ERROR)
+
+    def on_edit_footprint_rules(self, event):
+        try:
+            from footprint_rules_dialog import FootprintRulesDialog
+            plugin_dir = os.path.dirname(os.path.abspath(__file__))
+            dlg = FootprintRulesDialog(self, plugin_dir)
+            dlg.ShowModal()
+            dlg.Destroy()
+        except Exception:
+            import traceback
+            wx.MessageBox(traceback.format_exc(), "Footprint Rules Error", wx.OK | wx.ICON_ERROR)
 
     def on_browse_sch(self, event):
         dlg = wx.FileDialog(self, "Select Schematic", wildcard="KiCad Schematic (*.kicad_sch)|*.kicad_sch",
