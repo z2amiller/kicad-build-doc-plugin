@@ -242,6 +242,53 @@ class _EnclosureRenderer:
                 f"  \u00f8{cfg.hole_dia} mm"
             )
 
+    def draw_side_b_holes(self, side_b: List, log) -> None:
+        """Draw Side B (top face) holes on the top tab and record them for Tayda.
+
+        Side B coordinate system: X positive = right, Y positive = front face.
+        In the unfolded cross, Y positive = toward the front face = downward in the tab.
+        """
+        if not side_b:
+            return
+        smm = self.scale_mm
+        enc_h = self.fh / smm   # face height in mm
+        enc_d = self.td / smm   # depth in mm
+        c = self.c
+        # Label the top tab
+        tab_cx_pt = self.ox
+        tab_cy_pt = self.oy + (self.fh / 2 + self.td / 2)
+        c.saveState()
+        c.setFont("Helvetica-Oblique", 5)
+        c.setFillColorRGB(0.5, 0.5, 0.5)
+        c.drawCentredString(tab_cx_pt, tab_cy_pt + self.td / 2 - 3.5 * smm, "SIDE B — TOP FACE")
+        c.restoreState()
+        for hole in side_b:
+            self.holes.append(TaydaHole(
+                side="B",
+                diameter_mm=hole.diameter_mm,
+                x_mm=hole.x_mm,
+                y_mm=hole.y_mm,
+                label=hole.label,
+            ))
+            enc_x = hole.x_mm
+            enc_y = enc_h / 2 + enc_d / 2 - hole.y_mm
+            hx, hy = self.to_pdf(enc_x, enc_y)
+            dia = hole.diameter_mm
+            r = (dia / 2) * smm
+            cross = min(r + 1.5 * smm, 3.5 * smm)
+            c.setStrokeColorRGB(0, 0, 0.7)
+            c.setLineWidth(0.4)
+            c.circle(hx, hy, r, stroke=1, fill=0)
+            c.setLineWidth(0.25)
+            c.line(hx - cross, hy, hx + cross, hy)
+            c.line(hx, hy - cross, hx, hy + cross)
+            c.setFillColorRGB(0, 0, 0.7)
+            c.setFont("Helvetica", 5)
+            c.drawCentredString(hx, hy + r + 1.5 * smm, hole.label)
+            c.setFont("Helvetica", 4)
+            c.drawCentredString(hx, hy - r - 3.0 * smm, f"\u00f8{dia:.1f} mm")
+            log(f"    {hole.label} (Side B): ({hole.x_mm:.1f}, {hole.y_mm:.1f}) mm  \u00f8{dia} mm")
+
     def draw_fixed_holes(self, fixed_holes: List, log) -> None:
         """Draw fixed hole list."""
         for hole in fixed_holes:
@@ -429,6 +476,8 @@ def generate_enclosure_pdf(
     renderer.draw_footprint_holes(board, fp_config, _log)
     renderer.draw_led_holes(board, fp_config, _log)
     renderer.draw_fixed_holes(fixed_holes, _log)
+    if not face_only:
+        renderer.draw_side_b_holes(config.side_b, _log)
     if not face_only:
         renderer.draw_title_block(project_name, enc_w, enc_h)
         renderer.draw_scale_bar()

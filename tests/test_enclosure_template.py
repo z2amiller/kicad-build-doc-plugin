@@ -6,7 +6,8 @@ from unittest.mock import MagicMock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from kipy.board import BoardLayer
-from enclosure_template import _pad_centroid_offset_mm
+from enclosure_template import TaydaHole, _EnclosureRenderer, _pad_centroid_offset_mm
+from panel_config import SideBHole
 
 NM = 1_000_000  # nanometres per mm
 
@@ -92,3 +93,62 @@ def test_centroid_missing_definition_returns_zero():
     dx, dy = _pad_centroid_offset_mm(fp)
     assert dx == 0.0
     assert dy == 0.0
+
+
+# ── Side B hole rendering ─────────────────────────────────────────────────────
+
+def _make_renderer(enc_w=62.0, enc_h=119.5, enc_d=31.0):
+    """Build a minimal _EnclosureRenderer with a mock canvas and sane dimensions."""
+    from reportlab.lib.units import inch
+    from reportlab.lib.pagesizes import letter
+    MM = 72.0 / 25.4
+    pw, ph = letter
+    ox = pw / 2
+    oy = ph / 2
+    fw = enc_w * MM
+    fh = enc_h * MM
+    td = enc_d * MM
+    fl = ox - fw / 2
+    fb = oy - fh / 2
+    c = MagicMock()
+    return _EnclosureRenderer(
+        c=c, ox=ox, oy=oy, fl=fl, fb=fb, fw=fw, fh=fh, td=td,
+        board_cx=0, top_pcb_y=0, scale_mm=MM,
+    )
+
+
+def test_side_b_holes_recorded_with_side_b():
+    r = _make_renderer()
+    holes = [
+        SideBHole(label="Input",  diameter_mm=9.53, x_mm=-15.0, y_mm=0.0),
+        SideBHole(label="Output", diameter_mm=9.53, x_mm=15.0,  y_mm=0.0),
+    ]
+    r.draw_side_b_holes(holes, log=lambda m: None)
+    assert len(r.holes) == 2
+    assert all(h.side == "B" for h in r.holes)
+
+
+def test_side_b_hole_coordinates_preserved():
+    r = _make_renderer()
+    holes = [SideBHole(label="DC", diameter_mm=12.0, x_mm=5.5, y_mm=-3.2)]
+    r.draw_side_b_holes(holes, log=lambda m: None)
+    h = r.holes[0]
+    assert h.x_mm == 5.5
+    assert h.y_mm == -3.2
+    assert h.diameter_mm == 12.0
+    assert h.label == "DC"
+
+
+def test_side_b_empty_list_draws_nothing():
+    r = _make_renderer()
+    r.draw_side_b_holes([], log=lambda m: None)
+    assert r.holes == []
+
+
+def test_side_b_holes_appear_before_fixed_in_tayda_sort():
+    """Side B holes sort after Side A holes by the Tayda sort key (side, -y)."""
+    side_a = TaydaHole(side="A", diameter_mm=8.2, x_mm=0, y_mm=30, label="Knob")
+    side_b = TaydaHole(side="B", diameter_mm=9.53, x_mm=0, y_mm=0, label="Input")
+    sorted_holes = sorted([side_b, side_a], key=lambda h: (h.side, -h.y_mm))
+    assert sorted_holes[0].side == "A"
+    assert sorted_holes[1].side == "B"
