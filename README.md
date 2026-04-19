@@ -157,7 +157,7 @@ When a per-project `panel_config.json` is present, it is merged with the global 
 | Section | Behaviour |
 |---------|-----------|
 | `enclosure` | Project value replaces global entirely |
-| `footprints` | Project entries add or override individual global entries; unmentioned footprints are inherited |
+| `footprints` | Project entries add or override individual global entries; set a footprint to `null` to remove it; unmentioned footprints are inherited |
 | `fixed_holes` | Project entries are appended after global entries |
 
 A minimal per-project file that just changes the enclosure and adds a fixed footswitch hole:

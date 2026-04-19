@@ -125,6 +125,20 @@ def test_merge_footprint_override(tmp_path):
     assert result.footprints["Lib:A"].hole_dia == 9.0
 
 
+def test_merge_footprint_null_removes(tmp_path):
+    plugin_dir = tmp_path / "plugin"
+    project_dir = tmp_path / "project"
+    plugin_dir.mkdir(); project_dir.mkdir()
+    _write_config(plugin_dir / "panel_config.json", {
+        "footprints": {"Lib:A": {"hole_dia": 7.6, "offset_x": 0, "offset_y": 0}},
+    })
+    _write_config(project_dir / "panel_config.json", {
+        "footprints": {"Lib:A": None},
+    })
+    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
+    assert "Lib:A" not in result.footprints
+
+
 def test_merge_fixed_holes_concatenated(tmp_path):
     plugin_dir = tmp_path / "plugin"
     project_dir = tmp_path / "project"

@@ -104,7 +104,13 @@ def _merge_configs(base: dict, override: dict) -> dict:
 
     base_fps = base.get("footprints", {})
     override_fps = override.get("footprints", {})
-    result["footprints"] = {**base_fps, **override_fps}
+    merged_fps = dict(base_fps)
+    for fp_id, cfg in override_fps.items():
+        if cfg is None:
+            merged_fps.pop(fp_id, None)  # null means "remove from global defaults"
+        else:
+            merged_fps[fp_id] = cfg
+    result["footprints"] = merged_fps
 
     result["fixed_holes"] = list(base.get("fixed_holes", [])) + list(override.get("fixed_holes", []))
 
