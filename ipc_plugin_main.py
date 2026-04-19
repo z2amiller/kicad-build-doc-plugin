@@ -10,6 +10,7 @@ import logging
 import os
 import sys
 import tempfile
+import threading
 import time
 
 logger = logging.getLogger(__name__)
@@ -123,7 +124,19 @@ def main() -> int:
 
     try:
         from build_doc_dialog import BuildDocDialog
+        import wx
         dlg = BuildDocDialog(None, board)
+
+        def _watch_kicad():
+            while True:
+                time.sleep(3)
+                try:
+                    kicad.ping()
+                except Exception:
+                    wx.CallAfter(dlg.EndModal, wx.ID_CANCEL)
+                    return
+
+        threading.Thread(target=_watch_kicad, daemon=True).start()
         dlg.ShowModal()
         dlg.Destroy()
     except Exception:

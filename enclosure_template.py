@@ -229,9 +229,11 @@ class _EnclosureRenderer:
                 continue
             cfg = fp_config.get(
                 fp_id,
-                FootprintHoleConfig(hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED"),
+                FootprintHoleConfig(hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED",
+                                    use_pad_centroid=True),
             )
-            raw_x, raw_y = self.fp_to_enc(fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM)
+            pcb_x, pcb_y = _fp_pcb_pos_mm(fp, cfg)
+            raw_x, raw_y = self.fp_to_enc(pcb_x, pcb_y)
             enc_dx, enc_dy = _fp_enc_offset(fp, cfg)
             ex = raw_x + enc_dx
             ey = raw_y + enc_dy
@@ -550,8 +552,12 @@ def get_computed_holes(
             fp_id = get_fp_id(fp)
             if fp_id in fp_config:  # already included in fp_config loop above
                 continue
-            cfg = fp_config.get(fp_id, FootprintHoleConfig(hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED"))
-            ex, ey = r.fp_to_enc(fp.position.x / NM_PER_MM, fp.position.y / NM_PER_MM, cfg.offset_x, cfg.offset_y)
+            cfg = fp_config.get(fp_id, FootprintHoleConfig(hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED",
+                                                            use_pad_centroid=True))
+            pcb_x, pcb_y = _fp_pcb_pos_mm(fp, cfg)
+            enc_dx, enc_dy = _fp_enc_offset(fp, cfg)
+            rx, ry = r.fp_to_enc(pcb_x, pcb_y)
+            ex, ey = rx + enc_dx, ry + enc_dy
             results.append((cfg.label or "LED", cfg.hole_dia, ex, ey))
 
         return results
@@ -603,6 +609,36 @@ def get_footprint_entries(
                 "ref_enc_x": ref_enc_x,
                 "ref_enc_y": ref_enc_y,
                 "orientation_rad": fp.orientation.to_radians() if hasattr(fp, "orientation") else 0.0,
+            })
+
+        led_re = re.compile(r"^(D|LED)\d", re.IGNORECASE)
+        for fp in safe_get_footprints(board, _log):
+            ref = fp.reference_field.text.value
+            if not led_re.match(ref):
+                continue
+            if fp.layer != BoardLayer.BL_B_Cu:
+                continue
+            fp_id = get_fp_id(fp)
+            if fp_id in fp_config:  # already included above
+                continue
+            cfg = fp_config.get(
+                fp_id,
+                FootprintHoleConfig(hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED",
+                                    use_pad_centroid=True),
+            )
+            ref_x, ref_y = _fp_pcb_pos_mm(fp, cfg)
+            ref_enc_x, ref_enc_y = r.fp_to_enc(ref_x, ref_y)
+            results.append({
+                "fp_id": fp_id,
+                "reference": ref,
+                "label": cfg.label or "LED",
+                "hole_dia": cfg.hole_dia,
+                "offset_x": cfg.offset_x,
+                "offset_y": cfg.offset_y,
+                "ref_enc_x": ref_enc_x,
+                "ref_enc_y": ref_enc_y,
+                "orientation_rad": fp.orientation.to_radians() if hasattr(fp, "orientation") else 0.0,
+                "use_pad_centroid": True,
             })
 
         return results
@@ -661,12 +697,6 @@ def _pad_centroid_offset_mm(fp) -> tuple:
     # Subtract fp.position to get the offset from the footprint origin.
     cx = sum(p.position.x for p in pads) / len(pads) - fp.position.x
     cy = sum(p.position.y for p in pads) / len(pads) - fp.position.y
-    # B_Cu footprints are mirrored: local X is negated in PCB space
-    try:
-        if fp.layer == BoardLayer.BL_B_Cu:
-            cx = -cx
-    except Exception:
-        pass
     # rotate local offset into PCB frame using fp.orientation
     try:
         a = fp.orientation.to_radians()

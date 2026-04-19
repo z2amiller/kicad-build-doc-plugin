@@ -357,7 +357,8 @@ class DrillEditorDialog(wx.Dialog):
                 ref_enc_x=e["ref_enc_x"],
                 ref_enc_y=e["ref_enc_y"],
                 orientation_rad=e.get("orientation_rad", 0.0),
-                use_pad_centroid=orig_cfg.use_pad_centroid if orig_cfg else False,
+                use_pad_centroid=e.get("use_pad_centroid",
+                                       orig_cfg.use_pad_centroid if orig_cfg else False),
             )
             self._fp_entries.append(fe)
             self._fp_originals[fp_id] = {
@@ -616,6 +617,15 @@ class DrillEditorDialog(wx.Dialog):
                     label=orig.label,
                     use_pad_centroid=orig.use_pad_centroid,
                 )
+            else:
+                # Auto-detected entry (e.g. back-copper LED) not in any config file yet.
+                # Add it so the preview reflects in-dialog edits.
+                merged_fps[e.fp_id] = FootprintHoleConfig(
+                    hole_dia=e.hole_dia,
+                    offset_x=e.offset_x,
+                    offset_y=e.offset_y,
+                    use_pad_centroid=e.use_pad_centroid,
+                )
         config = PanelConfig(
             enclosure=config.enclosure,
             footprints=merged_fps,
@@ -753,11 +763,14 @@ class DrillEditorDialog(wx.Dialog):
             if (e.hole_dia != orig["hole_dia"]
                     or e.offset_x != orig["offset_x"]
                     or e.offset_y != orig["offset_y"]):
-                fp_overrides[e.fp_id] = {
+                entry: dict = {
                     "hole_dia": e.hole_dia,
                     "offset_x": e.offset_x,
                     "offset_y": e.offset_y,
                 }
+                if e.use_pad_centroid:
+                    entry["use_pad_centroid"] = True
+                fp_overrides[e.fp_id] = entry
         if fp_overrides:
             existing["footprints"] = fp_overrides
         # Remove the now-obsolete remove_fixed_holes key if present from an old file.

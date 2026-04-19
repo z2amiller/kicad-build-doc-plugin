@@ -134,13 +134,40 @@ class FootprintRulesDialog(wx.Dialog):
     # ── Board scan ────────────────────────────────────────────────────────────
 
     def _scan_candidates(self) -> None:
-        """Find footprints with a Control field that have no global rule."""
+        """Find footprints that have no global rule and could have a panel hole.
+
+        Two categories:
+        - Footprints with a Control field (any layer) — the normal case
+        - Back-copper LEDs/diodes — auto-detected by heuristic, but user may
+          want to customise their hole size or position via a global rule
+        """
+        from kipy.board import BoardLayer
         known_ids = set(self._rule_keys)
         seen: Dict[str, _Candidate] = {}
+
         for fp in safe_get_footprints(self._board):
             ref = fp.reference_field.text.value
             if ref.startswith("~") or ref in ("REF**", ""):
                 continue
+            fp_id = get_fp_id(fp)
+            if fp_id in known_ids or fp_id in seen:
+                continue
+
+            is_back_led = False
+            try:
+                is_back_led = bool(_LED_RE.match(ref) and fp.layer == BoardLayer.BL_B_Cu)
+            except Exception:
+                pass
+
+            label = get_field(fp, "Control")
+
+            if is_back_led:
+                # Include back-copper LEDs even without a Control field
+                seen[fp_id] = _Candidate(fp_id=fp_id, refs=[ref],
+                                         example_label=label or ref)
+                continue
+
+            # Skip front-copper LEDs and LED library footprints — not panel holes
             if _LED_RE.match(ref):
                 continue
             try:
@@ -148,16 +175,20 @@ class FootprintRulesDialog(wx.Dialog):
                     continue
             except Exception:
                 pass
-            label = get_field(fp, "Control")
+
             if not label:
                 continue
+            seen[fp_id] = _Candidate(fp_id=fp_id, refs=[ref], example_label=label)
+
+        # Collect multi-instance refs for non-LED footprints
+        for fp in safe_get_footprints(self._board):
+            ref = fp.reference_field.text.value
             fp_id = get_fp_id(fp)
-            if fp_id in known_ids:
-                continue
             if fp_id not in seen:
-                seen[fp_id] = _Candidate(fp_id=fp_id, refs=[ref], example_label=label)
-            else:
+                continue
+            if ref not in seen[fp_id].refs:
                 seen[fp_id].refs.append(ref)
+
         self._candidates = list(seen.values())
         self._candidates.sort(key=lambda c: c.fp_id)
 
@@ -419,10 +450,14 @@ class FootprintRulesDialog(wx.Dialog):
         self._dvc_rules.UnselectAll()
         self._btn_add_rule.Enable(True)
         self._btn_del.Enable(False)
-        # Default fields for a new rule
+        # Default fields for a new rule — LEDs get smaller diameter + centroid on
+        cand = self._candidates[row]
+        is_led = bool(_LED_RE.match(cand.refs[0]) if cand.refs else False)
         self._fill_fields(FootprintHoleConfig(
-            hole_dia=8.0, offset_x=0.0, offset_y=0.0,
-            label=self._candidates[row].example_label,
+            hole_dia=3.2 if is_led else 8.0,
+            offset_x=0.0, offset_y=0.0,
+            label=cand.example_label,
+            use_pad_centroid=is_led,
         ))
         self._enable_edit_fields(True)
 
