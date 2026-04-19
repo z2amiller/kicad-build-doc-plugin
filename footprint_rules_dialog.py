@@ -69,6 +69,8 @@ class FootprintRulesDialog(wx.Dialog):
         self._build_ui()
         self._refresh_candidates()
         self._refresh_rules()
+        if self._use_webview:
+            wx.CallAfter(self._on_preview, None)
 
     # ── WebView ───────────────────────────────────────────────────────────────
 
@@ -348,14 +350,18 @@ class FootprintRulesDialog(wx.Dialog):
                      self._txt_label, self._chk_centroid):
             ctrl.Enable(enabled)
 
-    def _generate_preview_pdf(self, fp_id: str, cfg: FootprintHoleConfig) -> Optional[str]:
+    def _generate_preview_pdf(
+        self,
+        extra_fp_id: Optional[str] = None,
+        extra_cfg: Optional[FootprintHoleConfig] = None,
+        highlight_fp_ids: Optional[set] = None,
+    ) -> Optional[str]:
         from enclosure_template import generate_enclosure_pdf
         from panel_config import PanelConfig
         full = load_panel_config(self._board_path or "", self._plugin_dir)
-        # Merge all existing rules + the footprint being previewed so the user
-        # can see it in context with the other controls.
         merged_fps = dict(self._rules)
-        merged_fps[fp_id] = cfg
+        if extra_fp_id is not None and extra_cfg is not None:
+            merged_fps[extra_fp_id] = extra_cfg
         preview_cfg = PanelConfig(
             enclosure=full.enclosure,
             footprints=merged_fps,
@@ -374,17 +380,14 @@ class FootprintRulesDialog(wx.Dialog):
                 page_num=1,
                 out_path=tf.name,
                 face_only=True,
-                highlight_fp_ids={fp_id},
+                highlight_fp_ids=highlight_fp_ids,
             )
             return tf.name
         except Exception as exc:
             wx.MessageBox(f"Preview failed:\n{exc}", "Preview Error", wx.OK | wx.ICON_WARNING)
             return None
 
-    def _show_preview(self, fp_id: str, cfg: FootprintHoleConfig) -> None:
-        path = self._generate_preview_pdf(fp_id, cfg)
-        if not path:
-            return
+    def _show_preview(self, path: str) -> None:
         if self._preview_path and self._preview_path != path:
             try:
                 os.unlink(self._preview_path)
@@ -503,15 +506,17 @@ class FootprintRulesDialog(wx.Dialog):
 
     def _on_preview(self, event: Any) -> None:
         cfg = self._cfg_from_fields()
-        if cfg is None:
-            return
-        if self._sel_candidate is not None:
+        if self._sel_candidate is not None and cfg is not None:
             fp_id = self._candidates[self._sel_candidate].fp_id
-        elif self._sel_rule is not None:
+            path = self._generate_preview_pdf(fp_id, cfg, highlight_fp_ids={fp_id})
+        elif self._sel_rule is not None and cfg is not None:
             fp_id = self._rule_keys[self._sel_rule]
+            path = self._generate_preview_pdf(fp_id, cfg, highlight_fp_ids={fp_id})
         else:
-            return
-        self._show_preview(fp_id, cfg)
+            # No selection — show all current rules with no highlight
+            path = self._generate_preview_pdf()
+        if path:
+            self._show_preview(path)
 
     def _on_apply(self, event: Any) -> None:
         if self._save_rules():

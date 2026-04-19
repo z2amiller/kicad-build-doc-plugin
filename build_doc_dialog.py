@@ -1,19 +1,37 @@
 """
 Build Document Generator - Dialog UI
 """
+import tempfile
 import wx
 import os
+from typing import Optional
 
 from footprint_utils import get_board_path
 from panel_config import load_blurb
+
+_WEBVIEW_AVAILABLE = None  # type: Optional[bool]
+
+
+def _check_webview() -> bool:
+    global _WEBVIEW_AVAILABLE
+    if _WEBVIEW_AVAILABLE is None:
+        try:
+            import wx.html2  # noqa: F401
+            _WEBVIEW_AVAILABLE = True
+        except Exception:
+            _WEBVIEW_AVAILABLE = False
+    return _WEBVIEW_AVAILABLE
 
 
 class BuildDocDialog(wx.Dialog):
     def __init__(self, parent, board):
         _ver_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")
         _ver = open(_ver_file).read().strip() if os.path.exists(_ver_file) else "dev"
-        super().__init__(parent, title=f"Build Document Generator v{_ver}", size=(500, 580))
+        self._use_webview = _check_webview()
+        w = 820 if self._use_webview else 500
+        super().__init__(parent, title=f"Build Document Generator v{_ver}", size=(w, 580))
         self.board = board
+        self._preview_path: Optional[str] = None
         self._build_ui()
 
     def log(self, msg):
@@ -143,8 +161,47 @@ class BuildDocDialog(wx.Dialog):
         self.txt_log.SetFont(wx.Font(9, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
         vbox.Add(self.txt_log, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
 
-        panel.SetSizer(vbox)
+        if self._use_webview:
+            root = wx.BoxSizer(wx.HORIZONTAL)
+            root.Add(vbox, proportion=0, flag=wx.EXPAND)
+            self._webview = wx.html2.WebView.New(panel, size=(300, -1))
+            root.Add(self._webview, proportion=0, flag=wx.EXPAND | wx.TOP | wx.RIGHT | wx.BOTTOM, border=8)
+            panel.SetSizer(root)
+            wx.CallAfter(self.refresh_preview)
+        else:
+            panel.SetSizer(vbox)
         self.Layout()
+
+    def refresh_preview(self) -> None:
+        if not self._use_webview:
+            return
+        try:
+            from enclosure_template import generate_enclosure_pdf
+            from panel_config import load_panel_config
+            plugin_dir = os.path.dirname(os.path.abspath(__file__))
+            board_path = get_board_path(self.board)
+            config = load_panel_config(board_path or "", plugin_dir)
+            tf = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+            tf.close()
+            generate_enclosure_pdf(
+                board=self.board,
+                config=config,
+                project_name="Preview",
+                author="",
+                total_pages=1,
+                page_num=1,
+                out_path=tf.name,
+                face_only=True,
+            )
+            if self._preview_path:
+                try:
+                    os.unlink(self._preview_path)
+                except OSError:
+                    pass
+            self._preview_path = tf.name
+            self._webview.LoadURL("file://" + tf.name)
+        except Exception:
+            pass  # preview is best-effort; don't interrupt the user
 
     def _on_enc_toggle(self, event):
         enabled = self.chk_enc.GetValue()
@@ -165,6 +222,7 @@ class BuildDocDialog(wx.Dialog):
             dlg = DrillEditorDialog(self, self.board, plugin_dir)
             dlg.ShowModal()
             dlg.Destroy()
+            self.refresh_preview()
         except Exception:
             import traceback
             wx.MessageBox(traceback.format_exc(), "Drill Editor Error", wx.OK | wx.ICON_ERROR)
@@ -176,6 +234,7 @@ class BuildDocDialog(wx.Dialog):
             dlg = FootprintRulesDialog(self, self.board, plugin_dir)
             dlg.ShowModal()
             dlg.Destroy()
+            self.refresh_preview()
         except Exception:
             import traceback
             wx.MessageBox(traceback.format_exc(), "Footprint Rules Error", wx.OK | wx.ICON_ERROR)
