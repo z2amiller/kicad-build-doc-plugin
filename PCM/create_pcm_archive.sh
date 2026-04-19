@@ -29,7 +29,10 @@ echo "Create PCM folder structure"
 mkdir -p "$PLUGINS_DIR" "$RESOURCES_DIR"
 
 echo "Copy plugin source files"
-for file in "$REPO_ROOT"/*.py "$REPO_ROOT"/*.txt "$REPO_ROOT"/plugin.json \
+for file in "$REPO_ROOT"/*.py "$REPO_ROOT"/*.txt \
+            "$REPO_ROOT"/plugin.json \
+            "$REPO_ROOT"/enclosure_presets.json \
+            "$REPO_ROOT"/panel_config.json \
             "$REPO_ROOT"/LICENSE "$REPO_ROOT"/README.md; do
     [ -e "$file" ] || continue
     cp -f "$file" "$PLUGINS_DIR/"
