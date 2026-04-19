@@ -64,15 +64,19 @@ class BuildDocDialog(wx.Dialog):
         self.chk_cover = wx.CheckBox(panel, label="Cover Page  (project name + board outline + controls)")
         self.chk_bom   = wx.CheckBox(panel, label="Parts List  (BOM from board footprints)")
         self.chk_enc   = wx.CheckBox(panel, label="Enclosure Template  (1:1 drilling guide)")
+        self.chk_tayda = wx.CheckBox(panel, label="Tayda Drill Manifest  (hole table for custom drilling order)")
         self.chk_sch   = wx.CheckBox(panel, label="Schematic   (exported from KiCad)")
         self.chk_cover.SetValue(True)
         self.chk_bom.SetValue(True)
         self.chk_enc.SetValue(True)
+        self.chk_tayda.SetValue(True)
         self.chk_sch.SetValue(True)
         bsizer.Add(self.chk_cover, flag=wx.ALL, border=4)
         bsizer.Add(self.chk_bom,   flag=wx.ALL, border=4)
         bsizer.Add(self.chk_enc,   flag=wx.ALL, border=4)
+        bsizer.Add(self.chk_tayda, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=4)
         bsizer.Add(self.chk_sch,   flag=wx.ALL, border=4)
+        self.chk_enc.Bind(wx.EVT_CHECKBOX, self._on_enc_toggle)
         vbox.Add(bsizer, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
 
         # ── Editor shortcuts ──────────────────────────────────────
@@ -139,6 +143,12 @@ class BuildDocDialog(wx.Dialog):
         panel.SetSizer(vbox)
         self.Layout()
 
+    def _on_enc_toggle(self, event):
+        enabled = self.chk_enc.GetValue()
+        self.chk_tayda.Enable(enabled)
+        if not enabled:
+            self.chk_tayda.SetValue(False)
+
     def on_edit_descriptions(self, event):
         from bulk_edit_dialog import BulkEditDialog
         dlg = BulkEditDialog(self, self.board)
@@ -181,6 +191,7 @@ class BuildDocDialog(wx.Dialog):
             include_cover=self.chk_cover.GetValue(),
             include_bom=self.chk_bom.GetValue(),
             include_enclosure=self.chk_enc.GetValue(),
+            include_tayda=self.chk_tayda.GetValue(),
             include_sch=self.chk_sch.GetValue(),
             sch_path=self.txt_sch.GetValue().strip(),
             output_path=self.txt_out.GetValue().strip(),
