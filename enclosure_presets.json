@@ -3,7 +3,7 @@
   "125B": {
     "width": 62.0,
     "height": 119.5,
-    "depth": 31.0,
+    "depth": 38.1,
     "rotated": false,
     "side_b_layouts": [
       {
@@ -19,7 +19,7 @@
   "125B-R": {
     "width": 119.5,
     "height": 62.0,
-    "depth": 31.0,
+    "depth": 38.1,
     "rotated": true,
     "side_b_layouts": []
   },
