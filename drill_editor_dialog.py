@@ -130,6 +130,10 @@ class DrillEditorDialog(wx.Dialog):
         left.Add(self._dvc_auto, proportion=1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=8)
         self._populate_auto_holes()
 
+        btn_rules = wx.Button(panel, label="Manage Autodetect Rules…")
+        btn_rules.Bind(wx.EVT_BUTTON, self._on_manage_rules)
+        left.Add(btn_rules, flag=wx.LEFT | wx.TOP | wx.BOTTOM, border=8)
+
         # Fixed holes (editable)
         left.Add(wx.StaticText(panel, label="Fixed holes (manually specified):"),
                  flag=wx.LEFT | wx.TOP, border=8)
@@ -371,6 +375,20 @@ class DrillEditorDialog(wx.Dialog):
             ctrl.Enable(False)
         if self._use_webview:
             self._on_preview(None)
+
+    def _on_manage_rules(self, event: Any) -> None:
+        try:
+            from footprint_rules_dialog import FootprintRulesDialog
+            dlg = FootprintRulesDialog(self, self.board, self.plugin_dir)
+            dlg.ShowModal()
+            dlg.Destroy()
+            # Rules may have changed — refresh autodetected list and preview.
+            self._populate_auto_holes()
+            if self._use_webview:
+                self._on_preview(None)
+        except Exception:
+            import traceback
+            wx.MessageBox(traceback.format_exc(), "Rules Editor Error", wx.OK | wx.ICON_ERROR)
 
     def _current_preset(self) -> Optional[str]:
         """Return the selected preset name, or None for Custom."""
