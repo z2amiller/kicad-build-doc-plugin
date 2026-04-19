@@ -107,9 +107,9 @@ def generate_tayda_manifest_pdf(
     for hole in sorted_holes:
         data.append([
             Paragraph(hole.side, cell_style()),
-            Paragraph(f"{hole.diameter_mm:.2f}", cell_style()),
-            Paragraph(f"{hole.x_mm:.2f}", cell_style()),
-            Paragraph(f"{hole.y_mm:.2f}", cell_style()),
+            Paragraph(f"{hole.diameter_mm:.1f}", cell_style()),
+            Paragraph(f"{hole.x_mm:.1f}", cell_style()),
+            Paragraph(f"{hole.y_mm:.1f}", cell_style()),
             Paragraph(hole.label, cell_style()),
         ])
 
