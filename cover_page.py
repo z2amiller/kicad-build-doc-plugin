@@ -10,7 +10,7 @@ from reportlab.lib.units import inch
 from reportlab.platypus import Flowable, Paragraph, Spacer, Table, TableStyle
 
 from footprint_utils import extract_controls, get_board_path
-from panel_config import load_blurb, load_copyright, load_panel_config
+from panel_config import load_copyright, load_panel_config
 from pdf_utils import COL_ACCENT, COL_HEADER_BG, MARGIN, PAGE_H, PAGE_W, hr
 
 _CONTROLS_PER_COL = 4
@@ -93,13 +93,12 @@ def build_cover_story(
     revision: str,
     tmpdir: str,
     plugin_dir: str,
-    project_dir: str = "",
+    blurb: str = "",
     log: Optional[Callable] = None,
 ) -> Tuple[List, _BoardImageSlot]:
     _log = log or (lambda msg: None)
     story: List = []
     inner_w = PAGE_W - 2 * MARGIN
-    _project_dir = project_dir or ""
 
     title_style = ParagraphStyle(
         "CoverTitle",
@@ -145,7 +144,7 @@ def build_cover_story(
     story.append(hr(inner_w))
     story.append(Spacer(1, 0.25 * inch))
 
-    blurb_text = load_blurb(_project_dir) if _project_dir else None
+    blurb_text = blurb.strip() or None
     board_slot_h = PAGE_H * (0.50 if blurb_text else 0.55)
     slot = _BoardImageSlot(inner_w, board_slot_h)
     story.append(slot)

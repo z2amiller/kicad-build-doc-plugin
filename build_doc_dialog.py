@@ -5,13 +5,14 @@ import wx
 import os
 
 from footprint_utils import get_board_path
+from panel_config import load_blurb
 
 
 class BuildDocDialog(wx.Dialog):
     def __init__(self, parent, board):
         _ver_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")
         _ver = open(_ver_file).read().strip() if os.path.exists(_ver_file) else "dev"
-        super().__init__(parent, title=f"Build Document Generator v{_ver}", size=(500, 520))
+        super().__init__(parent, title=f"Build Document Generator v{_ver}", size=(500, 580))
         self.board = board
         self._build_ui()
 
@@ -42,6 +43,17 @@ class BuildDocDialog(wx.Dialog):
         grid.Add(wx.StaticText(panel, label="Revision:"), flag=wx.ALIGN_CENTER_VERTICAL)
         self.txt_rev = wx.TextCtrl(panel, value="1.0")
         grid.Add(self.txt_rev, flag=wx.EXPAND)
+
+        grid.Add(wx.StaticText(panel, label="Cover Blurb:"), flag=wx.ALIGN_TOP | wx.TOP, border=2)
+        project_dir = os.path.dirname(board_path) if board_path else ""
+        default_blurb = load_blurb(project_dir) or ""
+        self.txt_blurb = wx.TextCtrl(
+            panel,
+            value=default_blurb,
+            style=wx.TE_MULTILINE,
+            size=(-1, 54),
+        )
+        grid.Add(self.txt_blurb, flag=wx.EXPAND)
 
         vbox.Add(grid, flag=wx.EXPAND | wx.ALL, border=12)
 
@@ -149,6 +161,7 @@ class BuildDocDialog(wx.Dialog):
             project_name=self.txt_name.GetValue().strip() or "Untitled",
             author=self.txt_author.GetValue().strip(),
             revision=self.txt_rev.GetValue().strip(),
+            blurb=self.txt_blurb.GetValue().strip(),
             include_cover=self.chk_cover.GetValue(),
             include_bom=self.chk_bom.GetValue(),
             include_enclosure=self.chk_enc.GetValue(),

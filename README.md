@@ -60,6 +60,30 @@ to install these dependencies.
 
 ---
 
+## Cover page customisation
+
+### Copyright line
+
+Place a plain-text file named **`copyright.txt`** in the plugin's installation directory. Its contents are rendered as a small centred line below the revision/date, in a muted colour. A single line is typical:
+
+```
+© 2025 Your Name. All rights reserved.
+```
+
+Multi-line files are supported — newlines become line breaks in the PDF.
+
+### Project blurb
+
+A short description of the circuit (what it does, design notes, build tips) can appear between the board image and the controls list. There are two ways to provide it:
+
+**Via the dialog:** Type directly into the **Cover Blurb** text box. The box accepts multiple lines.
+
+**Via file:** Place a plain-text file named **`builddoc_blurb.txt`** in the same directory as your `.kicad_pcb` file. It is loaded automatically and pre-fills the Cover Blurb box each time you open the dialog — where you can edit or clear it before generating.
+
+Keep the blurb to 2–4 sentences. When a blurb is present, the board outline image shrinks slightly (from 55% to 50% of the page height) to make room.
+
+---
+
 ## Marking controls with the `Control` field
 
 The cover page lists all controls for the build. The plugin discovers controls by looking for a custom footprint field named **`Control`** — not by reference prefix.

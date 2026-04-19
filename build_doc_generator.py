@@ -28,6 +28,7 @@ class GeneratorParams:
     include_enclosure: bool = False
     include_sch: bool = False
     sch_path: str = ""
+    blurb: str = ""
 
 
 from board_image import apply_board_pdf_to_cover, export_board_pdf
@@ -168,7 +169,7 @@ class BuildDocGenerator:
                 revision=self.revision,
                 tmpdir=self.tmpdir,
                 plugin_dir=self._plugin_dir,
-                project_dir=os.path.dirname(get_board_path(self.board)),
+                blurb=self.params.blurb,
                 log=self._log,
             )
             story += cover_story
