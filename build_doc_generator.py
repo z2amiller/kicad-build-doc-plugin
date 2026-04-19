@@ -36,7 +36,7 @@ from bom_pages import build_bom_story
 from cover_page import build_cover_story
 from enclosure_template import board_size_mm, generate_enclosure_pdf
 from footprint_utils import get_board_path
-from panel_config import load_panel_config
+from panel_config import load_panel_config, snapshot_global_to_project
 from pdf_utils import MARGIN, make_page_footer, merge_pdfs
 from schematic_export import export_schematic_pdf, stamp_schematic_footer
 
@@ -129,7 +129,9 @@ class BuildDocGenerator:
 
         if has_enc:
             self._log("Generating enclosure drilling template…")
-            config = load_panel_config(get_board_path(self.board), self._plugin_dir, self._log)
+            board_path = get_board_path(self.board)
+            snapshot_global_to_project(board_path, self._plugin_dir, self._log)
+            config = load_panel_config(board_path, self._plugin_dir, self._log)
             generate_enclosure_pdf(
                 board=self.board,
                 config=config,

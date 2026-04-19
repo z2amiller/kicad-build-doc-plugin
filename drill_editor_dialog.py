@@ -12,7 +12,7 @@ import wx
 import wx.dataview as dv
 
 from footprint_utils import get_board_path
-from panel_config import EnclosureConfig, FixedHole, PanelConfig, load_panel_config
+from panel_config import EnclosureConfig, FixedHole, PanelConfig, load_global_config, load_panel_config
 
 COL_LABEL = 0
 COL_DIA   = 1
@@ -43,10 +43,15 @@ class DrillEditorDialog(wx.Dialog):
         self._project_dir = os.path.dirname(self._board_path) if self._board_path else ""
         self._project_json = os.path.join(self._project_dir, "panel_config.json") if self._project_dir else ""
 
-        # Load merged config as starting point
-        merged = load_panel_config(self._board_path or "", plugin_dir)
-        self._enclosure = merged.enclosure
-        self._rows: List[FixedHole] = list(merged.fixed_holes)
+        # Load from project file if it exists; otherwise seed from global template.
+        self._global_config = load_global_config(plugin_dir)
+        if self._project_json and os.path.exists(self._project_json):
+            project = load_panel_config(self._board_path or "", plugin_dir)
+            self._enclosure = project.enclosure
+            self._rows: List[FixedHole] = list(project.fixed_holes)
+        else:
+            self._enclosure = self._global_config.enclosure
+            self._rows: List[FixedHole] = list(self._global_config.fixed_holes)
         self._selected: Optional[int] = None
         self._updating = False
         self._preview_path: Optional[str] = None
@@ -160,12 +165,15 @@ class DrillEditorDialog(wx.Dialog):
         # Apply / Cancel / Preview buttons
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self._btn_preview = wx.Button(panel, label="Preview PDF")
+        btn_reset  = wx.Button(panel, label="Reset to Template")
         btn_apply  = wx.Button(panel, label="Apply")
         btn_cancel = wx.Button(panel, wx.ID_CANCEL, "Cancel")
         btn_apply.SetDefault()
         self._btn_preview.Bind(wx.EVT_BUTTON, self._on_preview)
+        btn_reset.Bind(wx.EVT_BUTTON, self._on_reset_template)
         btn_apply.Bind(wx.EVT_BUTTON, self._on_apply)
         btn_sizer.Add(self._btn_preview, flag=wx.RIGHT, border=6)
+        btn_sizer.Add(btn_reset, flag=wx.RIGHT, border=6)
         btn_sizer.AddStretchSpacer()
         btn_sizer.Add(btn_apply, flag=wx.RIGHT, border=6)
         btn_sizer.Add(btn_cancel)
@@ -330,6 +338,28 @@ class DrillEditorDialog(wx.Dialog):
 
     # ── Apply / save ──────────────────────────────────────────────────────────
 
+    def _on_reset_template(self, event: Any) -> None:
+        if wx.MessageBox(
+            "Reset enclosure and fixed holes to the global template?\n"
+            "Your current edits will be lost.",
+            "Reset to Template",
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+        ) != wx.YES:
+            return
+        self._enclosure = self._global_config.enclosure
+        self._rows = list(self._global_config.fixed_holes)
+        self._selected = None
+        self._updating = True
+        self._txt_enc_w.SetValue(f"{self._enclosure.width:.1f}")
+        self._txt_enc_h.SetValue(f"{self._enclosure.height:.1f}")
+        self._txt_enc_d.SetValue(f"{self._enclosure.depth:.1f}")
+        self._updating = False
+        self._refresh_list()
+        for ctrl in (self._txt_label, self._txt_dia, self._txt_x, self._txt_y):
+            ctrl.Enable(False)
+        if self._use_webview:
+            self._on_preview(None)
+
     def _on_apply(self, event: Any) -> None:
         if not self._project_json:
             wx.MessageBox("Cannot determine project directory — board not saved.",
@@ -345,7 +375,8 @@ class DrillEditorDialog(wx.Dialog):
                           wx.OK | wx.ICON_WARNING)
             return
 
-        # Load existing project JSON (if any) to preserve other keys (e.g. footprints)
+        # Load existing project JSON to preserve any footprint overrides the user
+        # may have set by hand; replace enclosure and fixed_holes entirely.
         existing: dict = {}
         if os.path.exists(self._project_json):
             try:
@@ -359,6 +390,8 @@ class DrillEditorDialog(wx.Dialog):
             {"label": h.label, "dia": h.dia, "x": h.x, "y": h.y}
             for h in self._rows
         ]
+        # Remove the now-obsolete remove_fixed_holes key if present from an old file.
+        existing.pop("remove_fixed_holes", None)
 
         with open(self._project_json, "w") as fh:
             json.dump(existing, fh, indent=2)

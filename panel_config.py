@@ -95,8 +95,10 @@ def _merge_configs(base: dict, override: dict) -> dict:
     """Merge override into base with section-aware semantics.
 
     - enclosure: override replaces base entirely if present
-    - footprints: dict merge — override entries add/replace individual footprints
-    - fixed_holes: concatenated (base first, then override additions)
+    - footprints: dict merge — override entries add/replace individual global entries;
+                  set a footprint to null to remove it from the global list
+    - fixed_holes: override replaces base entirely if the key is present in override;
+                   if absent from override, global list is used unchanged
     """
     result: dict = {}
 
@@ -112,11 +114,51 @@ def _merge_configs(base: dict, override: dict) -> dict:
             merged_fps[fp_id] = cfg
     result["footprints"] = merged_fps
 
-    remove_labels = set(override.get("remove_fixed_holes", []))
-    base_holes = [h for h in base.get("fixed_holes", []) if h.get("label") not in remove_labels]
-    result["fixed_holes"] = base_holes + list(override.get("fixed_holes", []))
+    if "fixed_holes" in override:
+        result["fixed_holes"] = list(override["fixed_holes"])
+    else:
+        result["fixed_holes"] = list(base.get("fixed_holes", []))
 
     return result
+
+
+def load_global_config(plugin_dir: str) -> PanelConfig:
+    """Load only the global panel_config.json (no project-level merge)."""
+    return load_panel_config("/nonexistent/board.kicad_pcb", plugin_dir)
+
+
+def snapshot_global_to_project(
+    board_path: str,
+    plugin_dir: str,
+    log: Optional[Callable] = None,
+) -> None:
+    """Write a project panel_config.json seeded from global defaults if none exists.
+
+    Called before generating the enclosure template so the drill editor always
+    has a self-contained project config to open and edit.
+    """
+    _log = log or (lambda msg: None)
+    if not board_path:
+        return
+    project_dir = os.path.dirname(board_path)
+    project_path = os.path.join(project_dir, "panel_config.json")
+    if os.path.exists(project_path):
+        return  # already has a project config
+
+    global_path = os.path.join(plugin_dir, "panel_config.json")
+    if not os.path.exists(global_path):
+        return
+
+    try:
+        with open(global_path) as fh:
+            data = json.load(fh)
+        # Strip the internal comment key; the project file is a clean snapshot.
+        data.pop("_comment", None)
+        with open(project_path, "w") as fh:
+            json.dump(data, fh, indent=2)
+        _log(f"  Created project panel_config.json from global template.")
+    except Exception as exc:
+        _log(f"  Warning: could not snapshot panel_config.json: {exc}")
 
 
 def load_panel_config(

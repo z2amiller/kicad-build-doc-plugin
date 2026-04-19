@@ -139,28 +139,7 @@ def test_merge_footprint_null_removes(tmp_path):
     assert "Lib:A" not in result.footprints
 
 
-def test_merge_remove_fixed_holes(tmp_path):
-    plugin_dir = tmp_path / "plugin"
-    project_dir = tmp_path / "project"
-    plugin_dir.mkdir(); project_dir.mkdir()
-    _write_config(plugin_dir / "panel_config.json", {
-        "fixed_holes": [{"label": "Footswitch", "dia": 12.2, "x": 0, "y": -45.2}],
-    })
-    _write_config(project_dir / "panel_config.json", {
-        "remove_fixed_holes": ["Footswitch"],
-        "fixed_holes": [
-            {"label": "Footswitch L", "dia": 12.2, "x": -15, "y": -45.2},
-            {"label": "Footswitch R", "dia": 12.2, "x":  15, "y": -45.2},
-        ],
-    })
-    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
-    labels = [h.label for h in result.fixed_holes]
-    assert "Footswitch" not in labels
-    assert "Footswitch L" in labels
-    assert "Footswitch R" in labels
-
-
-def test_merge_fixed_holes_concatenated(tmp_path):
+def test_merge_fixed_holes_replaces_when_present(tmp_path):
     plugin_dir = tmp_path / "plugin"
     project_dir = tmp_path / "project"
     plugin_dir.mkdir(); project_dir.mkdir()
@@ -172,7 +151,43 @@ def test_merge_fixed_holes_concatenated(tmp_path):
     })
     result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
     labels = [h.label for h in result.fixed_holes]
-    assert labels == ["Global", "Project"]
+    assert labels == ["Project"]
+    assert "Global" not in labels
+
+
+def test_merge_fixed_holes_inherited_when_absent(tmp_path):
+    plugin_dir = tmp_path / "plugin"
+    project_dir = tmp_path / "project"
+    plugin_dir.mkdir(); project_dir.mkdir()
+    _write_config(plugin_dir / "panel_config.json", {
+        "fixed_holes": [{"label": "Global", "dia": 12.2, "x": 0, "y": 0}],
+    })
+    _write_config(project_dir / "panel_config.json", {
+        "enclosure": {"width": 112, "height": 60},
+    })
+    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
+    labels = [h.label for h in result.fixed_holes]
+    assert labels == ["Global"]
+
+
+def test_merge_two_footswitches(tmp_path):
+    plugin_dir = tmp_path / "plugin"
+    project_dir = tmp_path / "project"
+    plugin_dir.mkdir(); project_dir.mkdir()
+    _write_config(plugin_dir / "panel_config.json", {
+        "fixed_holes": [{"label": "Footswitch", "dia": 12.2, "x": 0, "y": -45.2}],
+    })
+    _write_config(project_dir / "panel_config.json", {
+        "fixed_holes": [
+            {"label": "Footswitch L", "dia": 12.2, "x": -15, "y": -45.2},
+            {"label": "Footswitch R", "dia": 12.2, "x":  15, "y": -45.2},
+        ],
+    })
+    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
+    labels = [h.label for h in result.fixed_holes]
+    assert "Footswitch" not in labels
+    assert "Footswitch L" in labels
+    assert "Footswitch R" in labels
 
 
 # ── load_text_file / load_copyright / load_blurb ──────────────────────────────
