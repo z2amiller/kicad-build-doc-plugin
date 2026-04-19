@@ -2,6 +2,7 @@ import json
 
 from panel_config import (
     ENCLOSURE_PRESETS,
+    _SIDE_B_DEFAULTS,
     load_blurb,
     load_copyright,
     load_panel_config,
@@ -297,3 +298,92 @@ def test_load_blurb_present(tmp_path):
 
 def test_load_blurb_absent(tmp_path):
     assert load_blurb(str(tmp_path)) is None
+
+
+# ── Side B ────────────────────────────────────────────────────────────────────
+
+def test_side_b_explicit_holes_parsed(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"width": 62, "height": 117},
+        "side_b": [
+            {"label": "Input",  "diameter_mm": 9.53, "x_mm": -15.0, "y_mm": 0.0},
+            {"label": "Output", "diameter_mm": 9.53, "x_mm":  15.0, "y_mm": 0.0},
+        ],
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert len(result.side_b) == 2
+    assert result.side_b[0].label == "Input"
+    assert result.side_b[0].diameter_mm == 9.53
+    assert result.side_b[0].x_mm == -15.0
+    assert result.side_b[1].label == "Output"
+
+
+def test_side_b_preset_provides_defaults(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"preset": "125B"},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert len(result.side_b) == len(_SIDE_B_DEFAULTS["125B"])
+    labels = [h.label for h in result.side_b]
+    assert "Input" in labels
+    assert "Output" in labels
+    assert "DC" in labels
+
+
+def test_side_b_empty_when_no_preset_and_no_explicit(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"width": 62, "height": 117},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert result.side_b == []
+
+
+def test_side_b_explicit_overrides_preset_defaults(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"preset": "125B"},
+        "side_b": [{"label": "Custom", "diameter_mm": 8.0, "x_mm": 0.0, "y_mm": 0.0}],
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    assert len(result.side_b) == 1
+    assert result.side_b[0].label == "Custom"
+
+
+def test_side_b_merge_project_replaces_global(tmp_path):
+    plugin_dir = tmp_path / "plugin"
+    project_dir = tmp_path / "project"
+    plugin_dir.mkdir(); project_dir.mkdir()
+    _write_config(plugin_dir / "panel_config.json", {
+        "side_b": [{"label": "Global DC", "diameter_mm": 12.0, "x_mm": 0.0, "y_mm": 0.0}],
+    })
+    _write_config(project_dir / "panel_config.json", {
+        "side_b": [{"label": "Project DC", "diameter_mm": 12.0, "x_mm": 5.0, "y_mm": 0.0}],
+    })
+    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
+    assert len(result.side_b) == 1
+    assert result.side_b[0].label == "Project DC"
+
+
+def test_side_b_merge_inherits_global_when_absent(tmp_path):
+    plugin_dir = tmp_path / "plugin"
+    project_dir = tmp_path / "project"
+    plugin_dir.mkdir(); project_dir.mkdir()
+    _write_config(plugin_dir / "panel_config.json", {
+        "side_b": [{"label": "Global DC", "diameter_mm": 12.0, "x_mm": 0.0, "y_mm": 0.0}],
+    })
+    _write_config(project_dir / "panel_config.json", {
+        "enclosure": {"width": 62, "height": 117},
+    })
+    result = load_panel_config(str(project_dir / "board.kicad_pcb"), str(plugin_dir))
+    assert len(result.side_b) == 1
+    assert result.side_b[0].label == "Global DC"
+
+
+def test_side_b_1590a_has_no_dc(tmp_path):
+    _write_config(tmp_path / "panel_config.json", {
+        "enclosure": {"preset": "1590A"},
+    })
+    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
+    labels = [h.label for h in result.side_b]
+    assert "DC" not in labels
+    assert "Input" in labels
+    assert "Output" in labels

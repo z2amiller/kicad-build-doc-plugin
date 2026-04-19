@@ -18,6 +18,36 @@ ENCLOSURE_PRESETS: Dict[str, tuple] = {
     "1590XX": (121.0, 145.0, 37.0),
 }
 
+# Default Side B (top face) hole layouts per enclosure preset.
+# Holes are in mm from the top-face centre; X positive = right, Y positive = front.
+# Diameters: 9.53 mm = 3/8" (standard 1/4" jack), 12.0 mm = DC barrel jack (5.5mm OD).
+_SIDE_B_DEFAULTS: Dict[str, List[dict]] = {
+    "125B": [
+        {"label": "Input",  "diameter_mm": 9.53, "x_mm": -15.0, "y_mm": 0.0},
+        {"label": "Output", "diameter_mm": 9.53, "x_mm":  15.0, "y_mm": 0.0},
+        {"label": "DC",     "diameter_mm": 12.0, "x_mm":   0.0, "y_mm": 0.0},
+    ],
+    "1590B": [
+        {"label": "Input",  "diameter_mm": 9.53, "x_mm": -12.0, "y_mm": 0.0},
+        {"label": "Output", "diameter_mm": 9.53, "x_mm":  12.0, "y_mm": 0.0},
+        {"label": "DC",     "diameter_mm": 12.0, "x_mm":   0.0, "y_mm": 0.0},
+    ],
+    "1590BB": [
+        {"label": "Input",  "diameter_mm": 9.53, "x_mm": -20.0, "y_mm": 0.0},
+        {"label": "Output", "diameter_mm": 9.53, "x_mm":  20.0, "y_mm": 0.0},
+        {"label": "DC",     "diameter_mm": 12.0, "x_mm":   0.0, "y_mm": 0.0},
+    ],
+    "1590A": [
+        {"label": "Input",  "diameter_mm": 9.53, "x_mm": -8.0, "y_mm": 0.0},
+        {"label": "Output", "diameter_mm": 9.53, "x_mm":  8.0, "y_mm": 0.0},
+    ],
+    "1590XX": [
+        {"label": "Input",  "diameter_mm": 9.53, "x_mm": -25.0, "y_mm": 0.0},
+        {"label": "Output", "diameter_mm": 9.53, "x_mm":  25.0, "y_mm": 0.0},
+        {"label": "DC",     "diameter_mm": 12.0, "x_mm":   0.0, "y_mm": 0.0},
+    ],
+}
+
 
 @dataclass
 class EnclosureConfig:
@@ -45,10 +75,20 @@ class FixedHole:
 
 
 @dataclass
+class SideBHole:
+    """A manually-defined hole on the enclosure top face (Side B)."""
+    label: str
+    diameter_mm: float
+    x_mm: float
+    y_mm: float
+
+
+@dataclass
 class PanelConfig:
     enclosure: EnclosureConfig
     footprints: Dict[str, FootprintHoleConfig]
     fixed_holes: List[FixedHole]
+    side_b: List[SideBHole] = field(default_factory=list)
 
 
 def load_text_file(filename: str, dirs: List[str]) -> Optional[str]:
@@ -116,6 +156,15 @@ def _fixed_hole_from_dict(d: dict) -> FixedHole:
     )
 
 
+def _side_b_hole_from_dict(d: dict) -> SideBHole:
+    return SideBHole(
+        label=str(d.get("label", "")),
+        diameter_mm=float(d["diameter_mm"]),
+        x_mm=float(d["x_mm"]),
+        y_mm=float(d["y_mm"]),
+    )
+
+
 def _merge_configs(base: dict, override: dict) -> dict:
     """Merge override into base with section-aware semantics.
 
@@ -143,6 +192,11 @@ def _merge_configs(base: dict, override: dict) -> dict:
         result["fixed_holes"] = list(override["fixed_holes"])
     else:
         result["fixed_holes"] = list(base.get("fixed_holes", []))
+
+    if "side_b" in override:
+        result["side_b"] = list(override["side_b"])
+    elif "side_b" in base:
+        result["side_b"] = list(base["side_b"])
 
     return result
 
@@ -230,4 +284,11 @@ def load_panel_config(
         _fixed_hole_from_dict(h) for h in merged.get("fixed_holes", [])
     ]
 
-    return PanelConfig(enclosure=enclosure, footprints=footprints, fixed_holes=fixed_holes)
+    if "side_b" in merged:
+        side_b: List[SideBHole] = [_side_b_hole_from_dict(h) for h in merged["side_b"]]
+    elif enclosure.preset and enclosure.preset in _SIDE_B_DEFAULTS:
+        side_b = [_side_b_hole_from_dict(h) for h in _SIDE_B_DEFAULTS[enclosure.preset]]
+    else:
+        side_b = []
+
+    return PanelConfig(enclosure=enclosure, footprints=footprints, fixed_holes=fixed_holes, side_b=side_b)
