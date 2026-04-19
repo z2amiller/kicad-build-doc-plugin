@@ -1,6 +1,6 @@
 import textwrap
 
-from panel_config import load_panel_config
+from panel_config import load_blurb, load_copyright, load_panel_config, load_text_file
 
 
 def test_enclosure_parsed(tmp_path):
@@ -72,3 +72,41 @@ def test_fixed_hole_fields(tmp_path):
     assert hole.dia == 12.2
     assert hole.x == 0.0
     assert hole.y == -45.2
+
+
+# ── load_text_file / load_copyright / load_blurb ──────────────────────────────
+
+def test_load_text_file_found(tmp_path):
+    (tmp_path / "foo.txt").write_text("hello\nworld\n")
+    assert load_text_file("foo.txt", [str(tmp_path)]) == "hello\nworld"
+
+
+def test_load_text_file_missing(tmp_path):
+    assert load_text_file("nope.txt", [str(tmp_path)]) is None
+
+
+def test_load_text_file_first_dir_wins(tmp_path):
+    d1 = tmp_path / "a"
+    d2 = tmp_path / "b"
+    d1.mkdir(); d2.mkdir()
+    (d1 / "f.txt").write_text("from-a")
+    (d2 / "f.txt").write_text("from-b")
+    assert load_text_file("f.txt", [str(d1), str(d2)]) == "from-a"
+
+
+def test_load_copyright_present(tmp_path):
+    (tmp_path / "copyright.txt").write_text("© 2025 Me")
+    assert load_copyright(str(tmp_path)) == "© 2025 Me"
+
+
+def test_load_copyright_absent(tmp_path):
+    assert load_copyright(str(tmp_path)) is None
+
+
+def test_load_blurb_present(tmp_path):
+    (tmp_path / "builddoc_blurb.txt").write_text("A short description.\n")
+    assert load_blurb(str(tmp_path)) == "A short description."
+
+
+def test_load_blurb_absent(tmp_path):
+    assert load_blurb(str(tmp_path)) is None

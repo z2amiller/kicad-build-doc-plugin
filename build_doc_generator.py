@@ -168,6 +168,7 @@ class BuildDocGenerator:
                 revision=self.revision,
                 tmpdir=self.tmpdir,
                 plugin_dir=self._plugin_dir,
+                project_dir=os.path.dirname(get_board_path(self.board)),
                 log=self._log,
             )
             story += cover_story

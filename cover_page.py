@@ -10,7 +10,7 @@ from reportlab.lib.units import inch
 from reportlab.platypus import Flowable, Paragraph, Spacer, Table, TableStyle
 
 from footprint_utils import extract_controls, get_board_path
-from panel_config import load_panel_config
+from panel_config import load_blurb, load_copyright, load_panel_config
 from pdf_utils import COL_ACCENT, COL_HEADER_BG, MARGIN, PAGE_H, PAGE_W, hr
 
 _CONTROLS_PER_COL = 4
@@ -93,11 +93,13 @@ def build_cover_story(
     revision: str,
     tmpdir: str,
     plugin_dir: str,
+    project_dir: str = "",
     log: Optional[Callable] = None,
 ) -> Tuple[List, _BoardImageSlot]:
     _log = log or (lambda msg: None)
     story: List = []
     inner_w = PAGE_W - 2 * MARGIN
+    _project_dir = project_dir or ""
 
     title_style = ParagraphStyle(
         "CoverTitle",
@@ -127,13 +129,38 @@ def build_cover_story(
             sub_style,
         )
     )
+    copyright_text = load_copyright(plugin_dir)
+    if copyright_text:
+        copy_style = ParagraphStyle(
+            "CoverCopyright",
+            fontSize=8,
+            alignment=1,
+            textColor=COL_ACCENT,
+            fontName="Helvetica",
+            spaceAfter=4,
+        )
+        story.append(Paragraph(copyright_text.replace("\n", "<br/>"), copy_style))
+
     story.append(Spacer(1, 0.2 * inch))
     story.append(hr(inner_w))
     story.append(Spacer(1, 0.25 * inch))
 
-    slot = _BoardImageSlot(inner_w, PAGE_H * 0.55)
+    blurb_text = load_blurb(_project_dir) if _project_dir else None
+    board_slot_h = PAGE_H * (0.50 if blurb_text else 0.55)
+    slot = _BoardImageSlot(inner_w, board_slot_h)
     story.append(slot)
     story.append(Spacer(1, 0.2 * inch))
+
+    if blurb_text:
+        blurb_style = ParagraphStyle(
+            "CoverBlurb",
+            fontSize=9,
+            fontName="Helvetica",
+            leading=14,
+            spaceAfter=6,
+        )
+        story.append(Paragraph(blurb_text.replace("\n", "<br/>"), blurb_style))
+        story.append(Spacer(1, 0.1 * inch))
 
     _log("Extracting controls…")
     config = load_panel_config(get_board_path(board), plugin_dir, _log)

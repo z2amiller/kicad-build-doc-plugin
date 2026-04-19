@@ -36,6 +36,29 @@ class PanelConfig:
     fixed_holes: List[FixedHole]
 
 
+def load_text_file(filename: str, dirs: List[str]) -> Optional[str]:
+    """Return the content of *filename* from the first directory that contains it.
+
+    Strips trailing whitespace. Returns None if not found in any directory.
+    """
+    for directory in dirs:
+        path = os.path.join(directory, filename)
+        if os.path.exists(path):
+            with open(path) as fh:
+                return fh.read().rstrip()
+    return None
+
+
+def load_copyright(plugin_dir: str) -> Optional[str]:
+    """Return content of copyright.txt from the plugin directory, or None."""
+    return load_text_file("copyright.txt", [plugin_dir])
+
+
+def load_blurb(project_dir: str) -> Optional[str]:
+    """Return content of builddoc_blurb.txt from the project directory, or None."""
+    return load_text_file("builddoc_blurb.txt", [project_dir])
+
+
 def load_panel_config(
     board_path: str,
     plugin_dir: str,
