@@ -59,6 +59,7 @@ def _fake_enclosure_pdf(board, config, project_name, author,
     c.drawString(50, 750, "Enclosure placeholder")
     c.showPage()
     c.save()
+    return []
 
 
 @pytest.mark.parametrize("flags,expected_pages", [

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import re
+from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
 from kipy.board import BoardLayer
@@ -17,6 +18,16 @@ from pdf_utils import MARGIN
 MM = 72.0 / 25.4  # PDF points per mm
 TOP_ROW_MM = 38.0  # enclosure Y of the topmost control row
 NM_PER_MM = 1_000_000  # kipy uses nanometres
+
+
+@dataclass
+class TaydaHole:
+    """One drilled hole in Tayda's coordinate system (mm from face centre)."""
+    side: str        # "A" = front face, "B" = top face
+    diameter_mm: float
+    x_mm: float
+    y_mm: float
+    label: str = ""
 
 
 def _board_bbox(board):
@@ -72,6 +83,7 @@ class _EnclosureRenderer:
         self.board_cx = board_cx
         self.top_pcb_y = top_pcb_y
         self.scale_mm = scale_mm
+        self.holes: List[TaydaHole] = []
 
     # ── Coordinate helpers ────────────────────────────────────────────────────
 
@@ -101,6 +113,7 @@ class _EnclosureRenderer:
 
     def draw_hole(self, ex: float, ey: float, dia: float, label: str) -> None:
         """Draw a circle + crosshairs + labels at enclosure position (ex, ey)."""
+        self.holes.append(TaydaHole(side="A", diameter_mm=dia, x_mm=ex, y_mm=ey, label=label))
         c = self.c
         smm = self.scale_mm
         hx, hy = self.to_pdf(ex, ey)
@@ -332,7 +345,7 @@ def generate_enclosure_pdf(
     out_path: str,
     log: Optional[Callable] = None,
     face_only: bool = False,
-) -> None:
+) -> List[TaydaHole]:
     """Render a 1:1 drilling template on a letter-size page.
 
     Layout is a cross/plus shape — the enclosure face in the centre with
@@ -423,6 +436,7 @@ def generate_enclosure_pdf(
 
     c.save()
     _log("  Enclosure template written.")
+    return renderer.holes
 
 
 def get_computed_holes(

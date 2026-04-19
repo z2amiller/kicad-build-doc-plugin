@@ -34,7 +34,7 @@ class GeneratorParams:
 from board_image import apply_board_pdf_to_cover, export_board_pdf
 from bom_pages import build_bom_story
 from cover_page import build_cover_story
-from enclosure_template import board_size_mm, generate_enclosure_pdf
+from enclosure_template import TaydaHole, board_size_mm, generate_enclosure_pdf
 from footprint_utils import get_board_path
 from panel_config import load_panel_config, snapshot_global_to_project
 from pdf_utils import MARGIN, make_page_footer, merge_pdfs
@@ -62,6 +62,7 @@ class BuildDocGenerator:
     def generate(self) -> None:
         body_pdf = os.path.join(self.tmpdir, "body.pdf")
         enc_pdf = os.path.join(self.tmpdir, "enclosure.pdf")
+        self.enc_holes = []
         has_body = self.params.include_cover or self.params.include_bom
         has_enc = self.params.include_enclosure
         has_sch = self.params.include_sch
@@ -132,7 +133,7 @@ class BuildDocGenerator:
             board_path = get_board_path(self.board)
             snapshot_global_to_project(board_path, self._plugin_dir, self._log)
             config = load_panel_config(board_path, self._plugin_dir, self._log)
-            generate_enclosure_pdf(
+            self.enc_holes = generate_enclosure_pdf(
                 board=self.board,
                 config=config,
                 project_name=self.project_name,
