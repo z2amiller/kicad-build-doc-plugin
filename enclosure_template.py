@@ -612,20 +612,22 @@ def get_footprint_entries(
 
 
 def _fp_enc_offset(fp, cfg) -> Tuple[float, float]:
-    """Return enclosure-space (dx, dy) for cfg's offset_x/y, rotated by fp's orientation.
+    """Return enclosure-space (dx, dy) for cfg's offset_x/y, rotating with the footprint.
 
-    Offsets are defined in footprint-local space.  Rotating by fp.orientation gives the
-    PCB-frame delta; negating both components converts to enclosure frame (mirror X,
-    enclosure Y is up = PCB Y negated).
+    Offsets are defined in enclosure space for a 0°-rotation footprint (+X = right on
+    panel, +Y = up on panel).  For rotated footprints the offset vector is rotated by the
+    same angle so it stays aligned with the physical component — e.g. a pot installed
+    sideways (90°) will have its offset rotated 90° in the enclosure view automatically.
+
+    At 0° rotation this reduces to (offset_x, offset_y), preserving the old behaviour.
     """
     try:
         a = fp.orientation.to_radians()
     except Exception:
         a = 0.0
     cos_a, sin_a = math.cos(a), math.sin(a)
-    pcb_dx = cos_a * cfg.offset_x - sin_a * cfg.offset_y
-    pcb_dy = sin_a * cfg.offset_x + cos_a * cfg.offset_y
-    return (-pcb_dx, -pcb_dy)
+    return (cos_a * cfg.offset_x - sin_a * cfg.offset_y,
+            sin_a * cfg.offset_x + cos_a * cfg.offset_y)
 
 
 def _fp_pcb_pos_mm(fp, cfg) -> Tuple[float, float]:
@@ -693,8 +695,9 @@ def _find_top_anchor(board, fp_config: Dict) -> Optional[float]:
             a = fp.orientation.to_radians()
         except Exception:
             a = 0.0
-        pcb_off_y = math.sin(a) * cfg.offset_x + math.cos(a) * cfg.offset_y
-        effective_y = fp.position.y / NM_PER_MM + pcb_off_y
+        # enc_off_y rotates with the footprint; hole PCB Y = fp_y - enc_off_y
+        enc_off_y = math.sin(a) * cfg.offset_x + math.cos(a) * cfg.offset_y
+        effective_y = fp.position.y / NM_PER_MM - enc_off_y
         if top_pcb_y is None or effective_y < top_pcb_y:
             top_pcb_y = effective_y
     return top_pcb_y

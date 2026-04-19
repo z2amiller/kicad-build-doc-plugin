@@ -39,13 +39,13 @@ class _FpEntry:
     def enc_x(self) -> float:
         cos_a = math.cos(self.orientation_rad)
         sin_a = math.sin(self.orientation_rad)
-        return self.ref_enc_x - (cos_a * self.offset_x - sin_a * self.offset_y)
+        return self.ref_enc_x + cos_a * self.offset_x - sin_a * self.offset_y
 
     @property
     def enc_y(self) -> float:
         cos_a = math.cos(self.orientation_rad)
         sin_a = math.sin(self.orientation_rad)
-        return self.ref_enc_y - (sin_a * self.offset_x + cos_a * self.offset_y)
+        return self.ref_enc_y + sin_a * self.offset_x + cos_a * self.offset_y
 
 _PRESET_CHOICES = ["Custom"] + list(ENCLOSURE_PRESETS.keys())
 
@@ -196,8 +196,8 @@ class DrillEditorDialog(wx.Dialog):
         fp_sizer.Add(fp_grid, flag=wx.ALL, border=6)
         fp_hint = wx.StaticText(
             panel,
-            label="Offsets are in footprint-local space and rotate with the footprint.\n"
-                  "+X = footprint's right axis, +Y = footprint's up axis. Apply saves to project.",
+            label="Offsets are in enclosure space (+X = right on panel, +Y = up) and rotate\n"
+                  "with the footprint's board orientation. Apply saves to project.",
         )
         fp_hint.SetForegroundColour(wx.Colour(100, 100, 100))
         fp_hint.SetFont(fp_hint.GetFont().Scaled(0.85))
