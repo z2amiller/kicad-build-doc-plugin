@@ -1,4 +1,5 @@
 """Cover page: project title, board image slot, and controls list."""
+
 from __future__ import annotations
 
 import datetime
@@ -47,7 +48,7 @@ def _controls_box(title: str, items: list, inner_w: float) -> Table:
 
     # Split items into column chunks
     n = _CONTROLS_PER_COL
-    chunks = [items[i:i + n] for i in range(0, len(items), n)]
+    chunks = [items[i : i + n] for i in range(0, len(items), n)]
     num_cols = len(chunks)
     max_rows = max(len(c) for c in chunks)
     col_w = inner_w / num_cols
@@ -59,8 +60,7 @@ def _controls_box(title: str, items: list, inner_w: float) -> Table:
             if r < len(chunk):
                 ctrl = chunk[r]
                 cell = Paragraph(
-                    f"\u2022 {ctrl.label}"
-                    f" <font color='grey' size='8'>({ctrl.value})</font>",
+                    f"\u2022 {ctrl.label} <font color='grey' size='8'>({ctrl.value})</font>",
                     ctrl_style,
                 )
             else:
@@ -72,17 +72,21 @@ def _controls_box(title: str, items: list, inner_w: float) -> Table:
     data = [title_row] + body_rows
 
     t = Table(data, colWidths=[col_w] * num_cols)
-    t.setStyle(TableStyle([
-        ("SPAN",         (0, 0), (-1, 0)),
-        ("BOX",          (0, 0), (-1, -1), 0.5,  colors.HexColor("#cccccc")),
-        ("LINEBELOW",    (0, 0), (-1, 0),  0.5,  colors.HexColor("#cccccc")),
-        ("BACKGROUND",   (0, 0), (-1, 0),        colors.HexColor("#f5f5f5")),
-        ("TOPPADDING",   (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING",(0, 0), (-1, -1), 4),
-        ("LEFTPADDING",  (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-        ("VALIGN",       (0, 0), (-1, -1), "TOP"),
-    ]))
+    t.setStyle(
+        TableStyle(
+            [
+                ("SPAN", (0, 0), (-1, 0)),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.HexColor("#cccccc")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f5f5")),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
     return t
 
 
@@ -177,18 +181,26 @@ def build_cover_story(
             gap = 8
             box_w = (inner_w - gap) / 2
             side = Table(
-                [[_controls_box("External Controls", external, box_w),
-                  _controls_box("Internal Controls", internal, box_w)]],
+                [
+                    [
+                        _controls_box("External Controls", external, box_w),
+                        _controls_box("Internal Controls", internal, box_w),
+                    ]
+                ],
                 colWidths=[box_w + gap, box_w],
             )
-            side.setStyle(TableStyle([
-                ("VALIGN",        (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING",   (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
-                ("TOPPADDING",    (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING",  (0, 0), (0, -1),  gap),
-            ]))
+            side.setStyle(
+                TableStyle(
+                    [
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (0, -1), gap),
+                    ]
+                )
+            )
             story.append(side)
         elif external:
             story.append(_controls_box("External Controls", external, inner_w))

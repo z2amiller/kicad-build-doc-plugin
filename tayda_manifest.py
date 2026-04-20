@@ -1,4 +1,5 @@
 """Tayda drill manifest page — PDF table of Side/Diameter/X/Y for custom drilling."""
+
 from __future__ import annotations
 
 from typing import Callable, List, Optional
@@ -105,31 +106,35 @@ def generate_tayda_manifest_pdf(
     data = [header]
 
     for hole in sorted_holes:
-        data.append([
-            Paragraph(hole.side, cell_style()),
-            Paragraph(f"{hole.diameter_mm:.1f}", cell_style()),
-            Paragraph(f"{hole.x_mm:.1f}", cell_style()),
-            Paragraph(f"{hole.y_mm:.1f}", cell_style()),
-            Paragraph(hole.label, cell_style()),
-        ])
+        data.append(
+            [
+                Paragraph(hole.side, cell_style()),
+                Paragraph(f"{hole.diameter_mm:.1f}", cell_style()),
+                Paragraph(f"{hole.x_mm:.1f}", cell_style()),
+                Paragraph(f"{hole.y_mm:.1f}", cell_style()),
+                Paragraph(hole.label, cell_style()),
+            ]
+        )
 
     if len(data) == 1:
         data.append([Paragraph("No holes defined.", cell_style())] + [""] * 4)
 
     tbl = Table(data, colWidths=col_widths, repeatRows=1)
     tbl.setStyle(
-        TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), COL_HEADER_BG),
-            ("TEXTCOLOR", (0, 0), (-1, 0), COL_HEADER_FG),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, COL_ROW_ALT]),
-            ("GRID", (0, 0), (-1, -1), 0.4, COL_RULE),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ])
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), COL_HEADER_BG),
+                ("TEXTCOLOR", (0, 0), (-1, 0), COL_HEADER_FG),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, COL_ROW_ALT]),
+                ("GRID", (0, 0), (-1, -1), 0.4, COL_RULE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+        )
     )
     story.append(tbl)
 

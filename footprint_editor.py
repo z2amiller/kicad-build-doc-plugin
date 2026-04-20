@@ -3,6 +3,7 @@
 No wx imports. No top-level kipy import (kipy is only available inside KiCad).
 Accept the live board object as a parameter so tests can pass a mock.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -15,10 +16,10 @@ from footprint_utils import get_field, get_fp_id, ref_sort_key, safe_get_footpri
 class FootprintRow:
     ref: str
     value: str
-    fp_type: str          # human-friendly type string (e.g. "Resistor, 1/4W")
-    fp_id: str            # "Lib:Part" identifier
-    description: str      # editable — maps to the Description footprint field
-    notes: str            # editable — maps to the Notes footprint field
+    fp_type: str  # human-friendly type string (e.g. "Resistor, 1/4W")
+    fp_id: str  # "Lib:Part" identifier
+    description: str  # editable — maps to the Description footprint field
+    notes: str  # editable — maps to the Notes footprint field
     _fp: Any = field(repr=False, compare=False)  # live kipy footprint object
     _orig_description: str = field(repr=False, compare=False, default="")
     _orig_notes: str = field(repr=False, compare=False, default="")
@@ -73,9 +74,11 @@ def load_footprints(board) -> List[FootprintRow]:
         control = get_field(fp, "Control")
         if not control:
             attrs = fp.attributes
-            if (attrs.exclude_from_bill_of_materials
-                    or attrs.exclude_from_position_files
-                    or attrs.do_not_populate):
+            if (
+                attrs.exclude_from_bill_of_materials
+                or attrs.exclude_from_position_files
+                or attrs.do_not_populate
+            ):
                 continue
 
         desc = get_field(fp, "Description")
@@ -97,6 +100,7 @@ def load_footprints(board) -> List[FootprintRow]:
         rows.append(row)
 
     import re as _re
+
     def _prefix(ref: str) -> str:
         m = _re.match(r"[A-Za-z_]+", ref)
         return m.group(0).upper() if m else ref
@@ -119,6 +123,7 @@ def _get_or_create_field(fp, field_name: str) -> Any:
 
     # Field absent — create a new kipy Field and attach it to the definition.
     from kipy.board_types import Field as KipyField
+
     new_field = KipyField()
     new_field.name = field_name
     new_field.visible = False

@@ -4,6 +4,7 @@ The plugin is launched via ipc_plugin_main.py by KiCad's IPC runtime.
 This file exists only to make the directory a Python package so that
 intra-package relative imports resolve correctly.
 """
+
 import os
 import sys
 

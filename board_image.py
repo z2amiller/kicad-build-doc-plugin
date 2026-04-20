@@ -1,4 +1,5 @@
 """Board PDF export, content-bounds detection, overlay, and dimension annotation."""
+
 from __future__ import annotations
 
 import io
@@ -29,12 +30,18 @@ def export_board_pdf(board, tmpdir: str, log: Optional[Callable] = None) -> str:
     out_pdf = os.path.join(tmpdir, "board_front.pdf")
     result = subprocess.run(
         [
-            cli, "pcb", "export", "pdf",
-            "--layers", "Edge.Cuts,F.Mask,F.Paste,F.SilkS",
-            "--scale", "0",
+            cli,
+            "pcb",
+            "export",
+            "pdf",
+            "--layers",
+            "Edge.Cuts,F.Mask,F.Paste,F.SilkS",
+            "--scale",
+            "0",
             "--black-and-white",
             "--mode-single",
-            "--output", out_pdf,
+            "--output",
+            out_pdf,
             board_path,
         ],
         capture_output=True,
@@ -45,8 +52,7 @@ def export_board_pdf(board, tmpdir: str, log: Optional[Callable] = None) -> str:
 
     if result.returncode != 0 or not os.path.exists(out_pdf):
         raise RuntimeError(
-            f"kicad-cli PDF export failed (exit {result.returncode}): "
-            f"{result.stderr.strip()[:300]}"
+            f"kicad-cli PDF export failed (exit {result.returncode}): {result.stderr.strip()[:300]}"
         )
 
     _log(f"  Board PDF exported: {out_pdf}")
@@ -108,14 +114,20 @@ def _dimension_overlay(
     # Width dimension (above board)
     y_line = top + GAP
     c.line(left, y_line, right, y_line)
-    c.line(left,  y_line - TICK, left,  y_line + TICK)
+    c.line(left, y_line - TICK, left, y_line + TICK)
     c.line(right, y_line - TICK, right, y_line + TICK)
     label_w = f"{width_mm:.1f} mm"
     mid_x = (left + right) / 2
     lw_pts = c.stringWidth(label_w, "Helvetica", FONT_SIZE)
     c.setFillColorRGB(1, 1, 1)
-    c.rect(mid_x - lw_pts / 2 - pad, y_line - FONT_SIZE / 2,
-           lw_pts + 2 * pad, FONT_SIZE, stroke=0, fill=1)
+    c.rect(
+        mid_x - lw_pts / 2 - pad,
+        y_line - FONT_SIZE / 2,
+        lw_pts + 2 * pad,
+        FONT_SIZE,
+        stroke=0,
+        fill=1,
+    )
     c.setFillColorRGB(0.25, 0.25, 0.25)
     c.drawCentredString(mid_x, y_line - FONT_SIZE / 2 + 1, label_w)
 
@@ -123,7 +135,7 @@ def _dimension_overlay(
     x_line = left - GAP
     c.line(x_line, bottom, x_line, top)
     c.line(x_line - TICK, bottom, x_line + TICK, bottom)
-    c.line(x_line - TICK, top,    x_line + TICK, top)
+    c.line(x_line - TICK, top, x_line + TICK, top)
     label_h = f"{height_mm:.1f} mm"
     mid_y = (bottom + top) / 2
     lh_pts = c.stringWidth(label_h, "Helvetica", FONT_SIZE)
@@ -131,8 +143,7 @@ def _dimension_overlay(
     c.translate(x_line - FONT_SIZE / 2 - 2, mid_y)
     c.rotate(90)
     c.setFillColorRGB(1, 1, 1)
-    c.rect(-lh_pts / 2 - pad, -FONT_SIZE / 2,
-           lh_pts + 2 * pad, FONT_SIZE, stroke=0, fill=1)
+    c.rect(-lh_pts / 2 - pad, -FONT_SIZE / 2, lh_pts + 2 * pad, FONT_SIZE, stroke=0, fill=1)
     c.setFillColorRGB(0.25, 0.25, 0.25)
     c.drawCentredString(0, -FONT_SIZE / 2 + 1, label_h)
     c.restoreState()
@@ -156,6 +167,7 @@ def apply_board_pdf_to_cover(
     if slot.page_x is None:
         _log("  Board slot position not recorded — cover image skipped.")
         import shutil
+
         shutil.copy(cover_pdf_path, out_path)
         return
 
@@ -171,8 +183,10 @@ def apply_board_pdf_to_cover(
         content_h = y1 - y0
         content_cx = (x0 + x1) / 2
         content_cy = (y0 + y1) / 2
-        _log(f"  Board content bounds: ({x0:.1f},{y0:.1f})–({x1:.1f},{y1:.1f}), "
-             f"size {content_w:.1f}×{content_h:.1f} pts")
+        _log(
+            f"  Board content bounds: ({x0:.1f},{y0:.1f})–({x1:.1f},{y1:.1f}), "
+            f"size {content_w:.1f}×{content_h:.1f} pts"
+        )
     else:
         x0 = y0 = x1 = y1 = None
         content_w = pdf_w
@@ -194,18 +208,29 @@ def apply_board_pdf_to_cover(
 
     writer = PdfWriter()
     writer.append(cover_reader)
-    writer.pages[0].merge_transformed_page(board_page, Transformation().scale(scale, scale).translate(tx, ty))
+    writer.pages[0].merge_transformed_page(
+        board_page, Transformation().scale(scale, scale).translate(tx, ty)
+    )
 
     if board_size_mm and bounds:
         bw_mm, bh_mm = board_size_mm
-        left   = x0 * scale + tx
-        right  = x1 * scale + tx
+        left = x0 * scale + tx
+        right = x1 * scale + tx
         bottom = y0 * scale + ty
-        top    = y1 * scale + ty
+        top = y1 * scale + ty
         _log(f"  Drawing dimension annotations: {bw_mm:.1f} × {bh_mm:.1f} mm")
-        dim_page = PdfReader(_dimension_overlay(
-            cover_page_w, cover_page_h, left, right, bottom, top, bw_mm, bh_mm,
-        )).pages[0]
+        dim_page = PdfReader(
+            _dimension_overlay(
+                cover_page_w,
+                cover_page_h,
+                left,
+                right,
+                bottom,
+                top,
+                bw_mm,
+                bh_mm,
+            )
+        ).pages[0]
         writer.pages[0].merge_page(dim_page)
 
     with open(out_path, "wb") as f:

@@ -1,12 +1,11 @@
 """Tests for footprint_editor.py — load, resolve_notes, commit_edits."""
-from unittest.mock import MagicMock, call, patch
 
-import pytest
+from unittest.mock import MagicMock
 
 from footprint_editor import FootprintRow, commit_edits, load_footprints, resolve_notes
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _make_field(name, value):
     f = MagicMock()
@@ -38,6 +37,7 @@ def _make_board(fps):
 
 
 # ── resolve_notes ─────────────────────────────────────────────────────────────
+
 
 def test_resolve_notes_prefers_notes_field():
     fp = _make_fp("R1", "10k", {"Notes": "Metal film", "Description": "Resistor"})
@@ -76,6 +76,7 @@ def test_resolve_notes_skips_empty_notes_field():
 
 
 # ── load_footprints ───────────────────────────────────────────────────────────
+
 
 def test_load_footprints_returns_rows():
     fps = [_make_fp("R1", "10k", {"Description": "Resistor"})]
@@ -138,12 +139,19 @@ def test_load_footprints_orig_description_captured():
 
 # ── FootprintRow state ────────────────────────────────────────────────────────
 
+
 def test_footprint_row_not_modified_initially():
     fp = _make_fp("R1", "10k", {"Description": "Resistor"})
     row = FootprintRow(
-        ref="R1", value="10k", fp_type="Resistor, 1/4W", fp_id="D:G",
-        description="Resistor", notes="",
-        _fp=fp, _orig_description="Resistor", _orig_notes="",
+        ref="R1",
+        value="10k",
+        fp_type="Resistor, 1/4W",
+        fp_id="D:G",
+        description="Resistor",
+        notes="",
+        _fp=fp,
+        _orig_description="Resistor",
+        _orig_notes="",
     )
     assert not row.is_modified()
 
@@ -151,9 +159,15 @@ def test_footprint_row_not_modified_initially():
 def test_footprint_row_modified_after_description_change():
     fp = _make_fp("R1", "10k")
     row = FootprintRow(
-        ref="R1", value="10k", fp_type="Resistor, 1/4W", fp_id="D:G",
-        description="Old", notes="",
-        _fp=fp, _orig_description="Old", _orig_notes="",
+        ref="R1",
+        value="10k",
+        fp_type="Resistor, 1/4W",
+        fp_id="D:G",
+        description="Old",
+        notes="",
+        _fp=fp,
+        _orig_description="Old",
+        _orig_notes="",
     )
     row.description = "New"
     assert row.description_changed()
@@ -162,15 +176,22 @@ def test_footprint_row_modified_after_description_change():
 
 # ── commit_edits ──────────────────────────────────────────────────────────────
 
+
 def _make_row(ref, value, orig_desc, new_desc, orig_notes="", new_notes=""):
     desc_field = _make_field("Description", orig_desc)
     notes_field = _make_field("Notes", orig_notes)
     fp = _make_fp(ref, value)
     fp.texts_and_fields = [desc_field, notes_field]
     row = FootprintRow(
-        ref=ref, value=value, fp_type="", fp_id="D:G",
-        description=new_desc, notes=new_notes,
-        _fp=fp, _orig_description=orig_desc, _orig_notes=orig_notes,
+        ref=ref,
+        value=value,
+        fp_type="",
+        fp_id="D:G",
+        description=new_desc,
+        notes=new_notes,
+        _fp=fp,
+        _orig_description=orig_desc,
+        _orig_notes=orig_notes,
     )
     return row
 
@@ -216,9 +237,7 @@ def test_commit_edits_sets_description_field_value():
     board = MagicMock()
     row = _make_row("R1", "10k", "Old", "New Metal Film Resistor")
     commit_edits(board, [row])
-    desc_field = next(
-        f for f in row._fp.texts_and_fields if f.name == "Description"
-    )
+    desc_field = next(f for f in row._fp.texts_and_fields if f.name == "Description")
     assert desc_field.text.value == "New Metal Film Resistor"
 
 
@@ -226,9 +245,7 @@ def test_commit_edits_sets_notes_field_value():
     board = MagicMock()
     row = _make_row("R1", "10k", "Resistor", "Resistor", "", "New note")
     commit_edits(board, [row])
-    notes_field = next(
-        f for f in row._fp.texts_and_fields if f.name == "Notes"
-    )
+    notes_field = next(f for f in row._fp.texts_and_fields if f.name == "Notes")
     assert notes_field.text.value == "New note"
 
 

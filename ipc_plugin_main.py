@@ -4,6 +4,7 @@ Reads KICAD_API_SOCKET and KICAD_API_TOKEN from environment variables,
 connects to the running KiCad instance via kipy, then opens the build
 document dialog.
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,17 +29,17 @@ def _acquire_instance_lock() -> bool:
         try:
             with open(_LOCK_FILE) as fh:
                 pid = int(fh.read().strip())
-            os.kill(pid, 0)   # signal 0 = existence check, no signal sent
-            return False       # process alive — another instance is running
+            os.kill(pid, 0)  # signal 0 = existence check, no signal sent
+            return False  # process alive — another instance is running
         except (ValueError, ProcessLookupError):
-            pass               # stale lock: bad PID or process gone
+            pass  # stale lock: bad PID or process gone
         except PermissionError:
-            return False       # process alive but owned by another user
+            return False  # process alive but owned by another user
     try:
         with open(_LOCK_FILE, "w") as fh:
             fh.write(str(os.getpid()))
     except OSError:
-        pass   # can't write lock; don't block the user
+        pass  # can't write lock; don't block the user
     return True
 
 
@@ -64,7 +65,8 @@ def _ensure_wx_app():
 
 
 def _wait_for_kicad(kicad, timeout_s: float = 8.0) -> bool:
-    from kipy.errors import ApiError, ConnectionError as KiPyConnectionError
+    from kipy.errors import ApiError
+    from kipy.errors import ConnectionError as KiPyConnectionError
 
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -96,6 +98,7 @@ def main() -> int:
 
     try:
         from kipy import KiCad
+
         kicad = KiCad(socket_path=socket_path, kicad_token=token)
 
         if not _wait_for_kicad(kicad):
@@ -114,6 +117,7 @@ def main() -> int:
 
     if not _acquire_instance_lock():
         import wx
+
         wx.MessageBox(
             "Build Document Generator is already running.\n"
             "Close the existing window before opening a new one.",
@@ -123,8 +127,10 @@ def main() -> int:
         return 0
 
     try:
-        from build_doc_dialog import BuildDocDialog
         import wx
+
+        from build_doc_dialog import BuildDocDialog
+
         dlg = BuildDocDialog(None, board)
 
         def _watch_kicad():

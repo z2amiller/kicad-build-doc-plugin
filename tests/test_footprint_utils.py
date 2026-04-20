@@ -1,6 +1,12 @@
 from unittest.mock import MagicMock
 
-from footprint_utils import Controls, extract_controls, friendly_footprint_type, get_field, ref_sort_key
+from footprint_utils import (
+    Controls,
+    extract_controls,
+    friendly_footprint_type,
+    get_field,
+    ref_sort_key,
+)
 
 
 def test_ref_sort_key_numeric_order():
@@ -81,6 +87,7 @@ def test_get_field_non_field_item_skipped():
 
 # ── extract_controls ──────────────────────────────────────────────────────────
 
+
 def _make_fp_with_control(ref, value, control, fp_id="Lib:Part"):
     fp = MagicMock()
     fp.reference_field.text.value = ref
@@ -117,7 +124,7 @@ def test_extract_controls_no_control_field():
 
 def test_extract_controls_external_vs_internal():
     ext_fp = _make_fp_with_control("RV1", "B100K", "Volume", "Panel:Alpha9mm")
-    int_fp = _make_fp_with_control("RV2", "B10K",  "Tone",   "Lib:Trim")
+    int_fp = _make_fp_with_control("RV2", "B10K", "Tone", "Lib:Trim")
     external_ids = {"Panel:Alpha9mm"}
     result = extract_controls(_make_board_ec([ext_fp, int_fp]), external_ids)
     assert len(result.external) == 1
@@ -137,8 +144,8 @@ def test_extract_controls_deduplicates_labels():
 
 def test_extract_controls_excludes_leds_and_diodes():
     fps = [
-        _make_fp_with_control("D1",   "1N4148", "Clip"),
-        _make_fp_with_control("LED1", "Red",    "Indicator"),
+        _make_fp_with_control("D1", "1N4148", "Clip"),
+        _make_fp_with_control("LED1", "Red", "Indicator"),
     ]
     result = extract_controls(_make_board_ec(fps), set())
     assert result == Controls(external=[], internal=[])
@@ -175,8 +182,8 @@ def test_extract_controls_keeps_multi_pad_internal():
 def test_extract_controls_sorted_by_ref():
     fps = [
         _make_fp_with_control("RV10", "B100K", "Reverb"),
-        _make_fp_with_control("RV2",  "B100K", "Delay"),
-        _make_fp_with_control("RV1",  "B100K", "Volume"),
+        _make_fp_with_control("RV2", "B100K", "Delay"),
+        _make_fp_with_control("RV1", "B100K", "Volume"),
     ]
     result = extract_controls(_make_board_ec(fps), set())
     labels = [c.label for c in result.internal]

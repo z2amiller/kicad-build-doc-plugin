@@ -1,11 +1,11 @@
 """Parser for panel_config.json panel configuration files."""
+
 from __future__ import annotations
 
 import json
 import os
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
-
 
 _PRESETS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "enclosure_presets.json")
 
@@ -30,8 +30,8 @@ class EnclosureConfig:
     width: float
     height: float
     depth: float = 35.0
-    preset: Optional[str] = None   # e.g. "125B" or "1590XX-R"; None = custom
-    rotated: bool = False           # True for -R presets; Tayda coords are transformed
+    preset: Optional[str] = None  # e.g. "125B" or "1590XX-R"; None = custom
+    rotated: bool = False  # True for -R presets; Tayda coords are transformed
 
 
 @dataclass
@@ -54,6 +54,7 @@ class FixedHole:
 @dataclass
 class SideBHole:
     """A manually-defined hole on the enclosure top face (Side B)."""
+
     label: str
     diameter_mm: float
     x_mm: float
@@ -63,10 +64,11 @@ class SideBHole:
 @dataclass
 class SnapConfig:
     """Snap-to-grid configuration for front-face hole positions."""
-    radius_mm: float = 0.0            # snap radius; 0 = disabled
-    top_row_mm: float = 38.0          # Y of topmost control row above enclosure centre
-    x: List[float] = field(default_factory=list)   # snap columns (mm from enc centre)
-    y: List[float] = field(default_factory=list)   # snap rows   (mm from enc centre)
+
+    radius_mm: float = 0.0  # snap radius; 0 = disabled
+    top_row_mm: float = 38.0  # Y of topmost control row above enclosure centre
+    x: List[float] = field(default_factory=list)  # snap columns (mm from enc centre)
+    y: List[float] = field(default_factory=list)  # snap rows   (mm from enc centre)
 
 
 @dataclass
@@ -234,7 +236,7 @@ def snapshot_global_to_project(
         data.pop("_comment", None)
         with open(project_path, "w") as fh:
             json.dump(data, fh, indent=2)
-        _log(f"  Created project panel_config.json from global template.")
+        _log("  Created project panel_config.json from global template.")
     except Exception as exc:
         _log(f"  Warning: could not snapshot panel_config.json: {exc}")
 
@@ -272,16 +274,17 @@ def load_panel_config(
         _log(f"  Merged project panel config from {project_path}")
 
     enc_dict = merged.get("enclosure")
-    enclosure = _enclosure_from_dict(enc_dict) if enc_dict else EnclosureConfig(width=62, height=117, depth=35.0)
+    enclosure = (
+        _enclosure_from_dict(enc_dict)
+        if enc_dict
+        else EnclosureConfig(width=62, height=117, depth=35.0)
+    )
 
     footprints: Dict[str, FootprintHoleConfig] = {
-        fp_id: _footprint_from_dict(cfg)
-        for fp_id, cfg in merged.get("footprints", {}).items()
+        fp_id: _footprint_from_dict(cfg) for fp_id, cfg in merged.get("footprints", {}).items()
     }
 
-    fixed_holes: List[FixedHole] = [
-        _fixed_hole_from_dict(h) for h in merged.get("fixed_holes", [])
-    ]
+    fixed_holes: List[FixedHole] = [_fixed_hole_from_dict(h) for h in merged.get("fixed_holes", [])]
 
     if "side_b" in merged:
         side_b: List[SideBHole] = [_side_b_hole_from_dict(h) for h in merged["side_b"]]
@@ -300,4 +303,10 @@ def load_panel_config(
     else:
         snap = SnapConfig()
 
-    return PanelConfig(enclosure=enclosure, footprints=footprints, fixed_holes=fixed_holes, side_b=side_b, snap=snap)
+    return PanelConfig(
+        enclosure=enclosure,
+        footprints=footprints,
+        fixed_holes=fixed_holes,
+        side_b=side_b,
+        snap=snap,
+    )

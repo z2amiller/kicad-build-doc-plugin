@@ -1,15 +1,15 @@
 """Tests for board_image.py — content bounds, dimension overlay, cover overlay."""
+
 import io
 
-import pytest
 from pypdf import PdfReader
 from reportlab.pdfgen import canvas as rl_canvas
 
 from board_image import _dimension_overlay, apply_board_pdf_to_cover, board_pdf_content_bounds
 from cover_page import _BoardImageSlot
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _pdf_with_rect(x0, y0, x1, y1, page_w=400, page_h=300) -> bytes:
     """Return raw PDF bytes with a rectangle drawn as explicit moveto/lineto commands."""
@@ -42,6 +42,7 @@ def _write(tmp_path, name, data: bytes):
 
 # ── board_pdf_content_bounds ──────────────────────────────────────────────────
 
+
 def test_content_bounds_detects_rect():
     page = PdfReader(io.BytesIO(_pdf_with_rect(20, 30, 150, 120))).pages[0]
     bounds = board_pdf_content_bounds(page)
@@ -66,6 +67,7 @@ def test_content_bounds_width_and_height():
 
 
 # ── _dimension_overlay ────────────────────────────────────────────────────────
+
 
 def test_dimension_overlay_contains_width_label():
     buf = _dimension_overlay(612, 792, 100, 400, 200, 500, 58.5, 45.0)
@@ -93,6 +95,7 @@ def test_dimension_overlay_returns_bytesio():
 
 
 # ── apply_board_pdf_to_cover ──────────────────────────────────────────────────
+
 
 def test_overlay_produces_single_page(tmp_path):
     cover = _write(tmp_path, "cover.pdf", _blank_pdf())

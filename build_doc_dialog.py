@@ -1,10 +1,12 @@
 """
 Build Document Generator - Dialog UI
 """
-import tempfile
-import wx
+
 import os
+import tempfile
 from typing import Optional
+
+import wx
 
 from footprint_utils import check_webview, get_board_path
 from panel_config import load_blurb
@@ -66,21 +68,25 @@ class BuildDocDialog(wx.Dialog):
         box = wx.StaticBox(panel, label="Pages to Include")
         bsizer = wx.StaticBoxSizer(box, wx.VERTICAL)
 
-        self.chk_cover = wx.CheckBox(panel, label="Cover Page  (project name + board outline + controls)")
-        self.chk_bom   = wx.CheckBox(panel, label="Parts List  (BOM from board footprints)")
-        self.chk_enc   = wx.CheckBox(panel, label="Enclosure Template  (1:1 drilling guide)")
-        self.chk_tayda = wx.CheckBox(panel, label="Tayda Drill Manifest  (hole table for custom drilling order)")
-        self.chk_sch   = wx.CheckBox(panel, label="Schematic   (exported from KiCad)")
+        self.chk_cover = wx.CheckBox(
+            panel, label="Cover Page  (project name + board outline + controls)"
+        )
+        self.chk_bom = wx.CheckBox(panel, label="Parts List  (BOM from board footprints)")
+        self.chk_enc = wx.CheckBox(panel, label="Enclosure Template  (1:1 drilling guide)")
+        self.chk_tayda = wx.CheckBox(
+            panel, label="Tayda Drill Manifest  (hole table for custom drilling order)"
+        )
+        self.chk_sch = wx.CheckBox(panel, label="Schematic   (exported from KiCad)")
         self.chk_cover.SetValue(True)
         self.chk_bom.SetValue(True)
         self.chk_enc.SetValue(True)
         self.chk_tayda.SetValue(True)
         self.chk_sch.SetValue(True)
         bsizer.Add(self.chk_cover, flag=wx.ALL, border=4)
-        bsizer.Add(self.chk_bom,   flag=wx.ALL, border=4)
-        bsizer.Add(self.chk_enc,   flag=wx.ALL, border=4)
+        bsizer.Add(self.chk_bom, flag=wx.ALL, border=4)
+        bsizer.Add(self.chk_enc, flag=wx.ALL, border=4)
         bsizer.Add(self.chk_tayda, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=4)
-        bsizer.Add(self.chk_sch,   flag=wx.ALL, border=4)
+        bsizer.Add(self.chk_sch, flag=wx.ALL, border=4)
         self.chk_enc.Bind(wx.EVT_CHECKBOX, self._on_enc_toggle)
         vbox.Add(bsizer, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
 
@@ -96,9 +102,11 @@ class BuildDocDialog(wx.Dialog):
 
         # ── Schematic path (optional override) ───────────────────
         sch_row = wx.BoxSizer(wx.HORIZONTAL)
-        sch_row.Add(wx.StaticText(panel, label="Schematic (.kicad_sch):"), flag=wx.ALIGN_CENTER_VERTICAL)
+        sch_row.Add(
+            wx.StaticText(panel, label="Schematic (.kicad_sch):"), flag=wx.ALIGN_CENTER_VERTICAL
+        )
         board_file = get_board_path(board)
-        board_dir  = os.path.dirname(board_file) if board_file else ""
+        board_dir = os.path.dirname(board_file) if board_file else ""
         # Prefer the schematic whose basename matches the board (the project root)
         default_sch = os.path.splitext(board_file)[0] + ".kicad_sch" if board_file else ""
         if not os.path.exists(default_sch):
@@ -142,14 +150,21 @@ class BuildDocDialog(wx.Dialog):
             style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2 | wx.HSCROLL,
             size=(-1, 110),
         )
-        self.txt_log.SetFont(wx.Font(9, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        self.txt_log.SetFont(
+            wx.Font(9, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        )
         vbox.Add(self.txt_log, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12)
 
         if self._use_webview:
             root = wx.BoxSizer(wx.HORIZONTAL)
             root.Add(vbox, proportion=0, flag=wx.EXPAND)
             self._webview = wx.html2.WebView.New(panel, size=(300, -1))
-            root.Add(self._webview, proportion=0, flag=wx.EXPAND | wx.TOP | wx.RIGHT | wx.BOTTOM, border=8)
+            root.Add(
+                self._webview,
+                proportion=0,
+                flag=wx.EXPAND | wx.TOP | wx.RIGHT | wx.BOTTOM,
+                border=8,
+            )
             panel.SetSizer(root)
             wx.CallAfter(self.refresh_preview)
         else:
@@ -162,6 +177,7 @@ class BuildDocDialog(wx.Dialog):
         try:
             from enclosure_template import generate_enclosure_pdf
             from panel_config import load_panel_config
+
             plugin_dir = os.path.dirname(os.path.abspath(__file__))
             board_path = get_board_path(self.board)
             config = load_panel_config(board_path or "", plugin_dir)
@@ -195,6 +211,7 @@ class BuildDocDialog(wx.Dialog):
 
     def on_edit_descriptions(self, event):
         from bulk_edit_dialog import BulkEditDialog
+
         dlg = BulkEditDialog(self, self.board)
         dlg.ShowModal()
         dlg.Destroy()
@@ -202,6 +219,7 @@ class BuildDocDialog(wx.Dialog):
     def on_edit_drills(self, event):
         try:
             from drill_editor_dialog import DrillEditorDialog
+
             plugin_dir = os.path.dirname(os.path.abspath(__file__))
             dlg = DrillEditorDialog(self, self.board, plugin_dir)
             dlg.ShowModal()
@@ -209,18 +227,27 @@ class BuildDocDialog(wx.Dialog):
             wx.CallAfter(self.refresh_preview)
         except Exception:
             import traceback
+
             wx.MessageBox(traceback.format_exc(), "Drill Editor Error", wx.OK | wx.ICON_ERROR)
 
     def on_browse_sch(self, event):
-        dlg = wx.FileDialog(self, "Select Schematic", wildcard="KiCad Schematic (*.kicad_sch)|*.kicad_sch",
-                            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+        dlg = wx.FileDialog(
+            self,
+            "Select Schematic",
+            wildcard="KiCad Schematic (*.kicad_sch)|*.kicad_sch",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        )
         if dlg.ShowModal() == wx.ID_OK:
             self.txt_sch.SetValue(dlg.GetPath())
         dlg.Destroy()
 
     def on_browse_out(self, event):
-        dlg = wx.FileDialog(self, "Save PDF As", wildcard="PDF files (*.pdf)|*.pdf",
-                            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+        dlg = wx.FileDialog(
+            self,
+            "Save PDF As",
+            wildcard="PDF files (*.pdf)|*.pdf",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        )
         if dlg.ShowModal() == wx.ID_OK:
             self.txt_out.SetValue(dlg.GetPath())
         dlg.Destroy()
@@ -243,7 +270,9 @@ class BuildDocDialog(wx.Dialog):
         )
 
         if not params.output_path:
-            wx.MessageBox("Please specify an output PDF path.", "Missing Output", wx.OK | wx.ICON_WARNING)
+            wx.MessageBox(
+                "Please specify an output PDF path.", "Missing Output", wx.OK | wx.ICON_WARNING
+            )
             return
 
         self.txt_log.Clear()
@@ -254,5 +283,6 @@ class BuildDocDialog(wx.Dialog):
             self.btn_cancel.SetLabel("Close")
         except Exception:
             import traceback
+
             tb = traceback.format_exc()
             self.log("ERROR:\n" + tb)

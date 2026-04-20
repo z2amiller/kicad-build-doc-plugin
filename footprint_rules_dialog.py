@@ -3,37 +3,42 @@
 Scans the current board for footprints that have a Control field but no matching
 entry in the global rules, and presents them as candidates to add.
 """
+
 from __future__ import annotations
 
 import json
 import os
 import re
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import wx
 import wx.dataview as dv
 
 from footprint_utils import (
-    check_webview, get_board_path, get_field, get_fp_id, safe_get_footprints,
     _is_led_footprint,
+    check_webview,
+    get_board_path,
+    get_field,
+    get_fp_id,
+    safe_get_footprints,
 )
-from panel_config import ENCLOSURE_PRESETS, FootprintHoleConfig, load_panel_config
+from panel_config import FootprintHoleConfig, load_panel_config
 
 _LED_RE = re.compile(r"^(D|LED)\d", re.IGNORECASE)
 
 # Columns for the candidates list
-_CC_ID    = 0
-_CC_REFS  = 1
+_CC_ID = 0
+_CC_REFS = 1
 _CC_LABEL = 2
 
 # Columns for the existing-rules list
-_RC_ID     = 0
-_RC_DIA    = 1
-_RC_OFF_X  = 2
-_RC_OFF_Y  = 3
-_RC_LABEL  = 4
+_RC_ID = 0
+_RC_DIA = 1
+_RC_OFF_X = 2
+_RC_OFF_Y = 3
+_RC_LABEL = 4
 _RC_CENTRD = 5
 
 
@@ -48,8 +53,12 @@ class FootprintRulesDialog(wx.Dialog):
     """Scan board for unrecognized footprints and edit the global panel_config.json."""
 
     def __init__(self, parent, board, plugin_dir: str) -> None:
-        super().__init__(parent, title="Edit Footprint Hole Rules", size=(900, 620),
-                         style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        super().__init__(
+            parent,
+            title="Edit Footprint Hole Rules",
+            size=(900, 620),
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
         self._board = board
         self._board_path = get_board_path(board)
         self._plugin_dir = plugin_dir
@@ -60,7 +69,7 @@ class FootprintRulesDialog(wx.Dialog):
         self._rule_keys: List[str] = []
         self._rules: Dict[str, FootprintHoleConfig] = {}
         self._sel_candidate: Optional[int] = None  # index into _candidates
-        self._sel_rule: Optional[int] = None        # index into _rule_keys
+        self._sel_rule: Optional[int] = None  # index into _rule_keys
         self._updating = False
         self._preview_path: Optional[str] = None
 
@@ -96,8 +105,9 @@ class FootprintRulesDialog(wx.Dialog):
             self._rule_keys = []
             self._rules = {}
         except Exception as exc:
-            wx.MessageBox(f"Could not load panel_config.json:\n{exc}",
-                          "Load Error", wx.OK | wx.ICON_WARNING)
+            wx.MessageBox(
+                f"Could not load panel_config.json:\n{exc}", "Load Error", wx.OK | wx.ICON_WARNING
+            )
 
     def _save_rules(self) -> bool:
         try:
@@ -119,8 +129,9 @@ class FootprintRulesDialog(wx.Dialog):
                 json.dump(existing, fh, indent=2)
             return True
         except Exception as exc:
-            wx.MessageBox(f"Could not save panel_config.json:\n{exc}",
-                          "Save Error", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(
+                f"Could not save panel_config.json:\n{exc}", "Save Error", wx.OK | wx.ICON_ERROR
+            )
             return False
 
     # ── Board scan ────────────────────────────────────────────────────────────
@@ -134,6 +145,7 @@ class FootprintRulesDialog(wx.Dialog):
           want to customise their hole size or position via a global rule
         """
         from kipy.board import BoardLayer
+
         known_ids = set(self._rule_keys)
         seen: Dict[str, _Candidate] = {}
 
@@ -155,8 +167,7 @@ class FootprintRulesDialog(wx.Dialog):
 
             if is_back_led:
                 # Include back-copper LEDs even without a Control field
-                seen[fp_id] = _Candidate(fp_id=fp_id, refs=[ref],
-                                         example_label=label or ref)
+                seen[fp_id] = _Candidate(fp_id=fp_id, refs=[ref], example_label=label or ref)
                 continue
 
             # Skip front-copper LEDs and LED library footprints — not panel holes
@@ -196,16 +207,20 @@ class FootprintRulesDialog(wx.Dialog):
         left.Add(cand_label, flag=wx.LEFT | wx.TOP | wx.BOTTOM, border=8)
 
         self._dvc_cand = dv.DataViewListCtrl(
-            panel, style=dv.DV_SINGLE | dv.DV_ROW_LINES | dv.DV_NO_HEADER)
+            panel, style=dv.DV_SINGLE | dv.DV_ROW_LINES | dv.DV_NO_HEADER
+        )
         self._dvc_cand.AppendTextColumn("Footprint ID", width=280, mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc_cand.AppendTextColumn("Refs",         width=100, mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc_cand.AppendTextColumn("Control",      width=130, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_cand.AppendTextColumn("Refs", width=100, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_cand.AppendTextColumn("Control", width=130, mode=dv.DATAVIEW_CELL_INERT)
         self._dvc_cand.Bind(dv.EVT_DATAVIEW_SELECTION_CHANGED, self._on_cand_selected)
         left.Add(self._dvc_cand, proportion=1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=8)
 
         if not self._candidates:
-            left.Add(wx.StaticText(panel, label="  ✓ All board footprints have rules."),
-                     flag=wx.LEFT | wx.BOTTOM, border=8)
+            left.Add(
+                wx.StaticText(panel, label="  ✓ All board footprints have rules."),
+                flag=wx.LEFT | wx.BOTTOM,
+                border=8,
+            )
 
         # Edit fields (shared for both lists)
         edit_box = wx.StaticBox(panel, label="Rule settings")
@@ -256,8 +271,13 @@ class FootprintRulesDialog(wx.Dialog):
 
         left.Add(edit_sizer, flag=wx.EXPAND | wx.ALL, border=8)
 
-        for ctrl in (self._txt_dia, self._txt_off_x, self._txt_off_y,
-                     self._txt_label, self._chk_centroid):
+        for ctrl in (
+            self._txt_dia,
+            self._txt_off_x,
+            self._txt_off_y,
+            self._txt_label,
+            self._chk_centroid,
+        ):
             if isinstance(ctrl, wx.TextCtrl):
                 ctrl.Bind(wx.EVT_TEXT, self._on_edit)
             else:
@@ -270,13 +290,14 @@ class FootprintRulesDialog(wx.Dialog):
         left.Add(rules_label, flag=wx.LEFT | wx.BOTTOM, border=8)
 
         self._dvc_rules = dv.DataViewListCtrl(
-            panel, style=dv.DV_SINGLE | dv.DV_ROW_LINES | dv.DV_NO_HEADER)
-        self._dvc_rules.AppendTextColumn("Footprint ID",  width=240, mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc_rules.AppendTextColumn("Hole dia",      width=65,  mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc_rules.AppendTextColumn("Offset X",      width=65,  mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc_rules.AppendTextColumn("Offset Y",      width=65,  mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc_rules.AppendTextColumn("Label",         width=100, mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc_rules.AppendTextColumn("Centroid",      width=60,  mode=dv.DATAVIEW_CELL_INERT)
+            panel, style=dv.DV_SINGLE | dv.DV_ROW_LINES | dv.DV_NO_HEADER
+        )
+        self._dvc_rules.AppendTextColumn("Footprint ID", width=240, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_rules.AppendTextColumn("Hole dia", width=65, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_rules.AppendTextColumn("Offset X", width=65, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_rules.AppendTextColumn("Offset Y", width=65, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_rules.AppendTextColumn("Label", width=100, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc_rules.AppendTextColumn("Centroid", width=60, mode=dv.DATAVIEW_CELL_INERT)
         self._dvc_rules.Bind(dv.EVT_DATAVIEW_SELECTION_CHANGED, self._on_rule_selected)
         left.Add(self._dvc_rules, proportion=1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=8)
 
@@ -290,7 +311,7 @@ class FootprintRulesDialog(wx.Dialog):
         # Apply / Cancel
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         btn_sizer.AddStretchSpacer()
-        btn_apply  = wx.Button(panel, label="Apply")
+        btn_apply = wx.Button(panel, label="Apply")
         btn_cancel = wx.Button(panel, wx.ID_CANCEL, "Cancel")
         btn_apply.SetDefault()
         btn_apply.Bind(wx.EVT_BUTTON, self._on_apply)
@@ -303,8 +324,12 @@ class FootprintRulesDialog(wx.Dialog):
         # ── Right column: WebView preview ─────────────────────────
         if self._use_webview:
             self._webview = wx.html2.WebView.New(panel, size=(300, -1))
-            root.Add(self._webview, proportion=0,
-                     flag=wx.EXPAND | wx.TOP | wx.RIGHT | wx.BOTTOM, border=8)
+            root.Add(
+                self._webview,
+                proportion=0,
+                flag=wx.EXPAND | wx.TOP | wx.RIGHT | wx.BOTTOM,
+                border=8,
+            )
 
         panel.SetSizer(root)
         self.Layout()
@@ -314,32 +339,36 @@ class FootprintRulesDialog(wx.Dialog):
     def _refresh_candidates(self) -> None:
         self._dvc_cand.DeleteAllItems()
         for c in self._candidates:
-            self._dvc_cand.AppendItem([
-                c.fp_id,
-                ", ".join(c.refs[:4]) + ("…" if len(c.refs) > 4 else ""),
-                c.example_label,
-            ])
+            self._dvc_cand.AppendItem(
+                [
+                    c.fp_id,
+                    ", ".join(c.refs[:4]) + ("…" if len(c.refs) > 4 else ""),
+                    c.example_label,
+                ]
+            )
 
     def _refresh_rules(self) -> None:
         self._dvc_rules.DeleteAllItems()
         for k in self._rule_keys:
             cfg = self._rules[k]
-            self._dvc_rules.AppendItem([
-                k,
-                f"{cfg.hole_dia:.2f}",
-                f"{cfg.offset_x:+.2f}",
-                f"{cfg.offset_y:+.2f}",
-                cfg.label or "",
-                "yes" if cfg.use_pad_centroid else "",
-            ])
+            self._dvc_rules.AppendItem(
+                [
+                    k,
+                    f"{cfg.hole_dia:.2f}",
+                    f"{cfg.offset_x:+.2f}",
+                    f"{cfg.offset_y:+.2f}",
+                    cfg.label or "",
+                    "yes" if cfg.use_pad_centroid else "",
+                ]
+            )
 
     def _update_rule_row(self, row: int) -> None:
         cfg = self._rules[self._rule_keys[row]]
-        self._dvc_rules.SetTextValue(self._rule_keys[row],         row, _RC_ID)
-        self._dvc_rules.SetTextValue(f"{cfg.hole_dia:.2f}",        row, _RC_DIA)
-        self._dvc_rules.SetTextValue(f"{cfg.offset_x:+.2f}",       row, _RC_OFF_X)
-        self._dvc_rules.SetTextValue(f"{cfg.offset_y:+.2f}",       row, _RC_OFF_Y)
-        self._dvc_rules.SetTextValue(cfg.label or "",               row, _RC_LABEL)
+        self._dvc_rules.SetTextValue(self._rule_keys[row], row, _RC_ID)
+        self._dvc_rules.SetTextValue(f"{cfg.hole_dia:.2f}", row, _RC_DIA)
+        self._dvc_rules.SetTextValue(f"{cfg.offset_x:+.2f}", row, _RC_OFF_X)
+        self._dvc_rules.SetTextValue(f"{cfg.offset_y:+.2f}", row, _RC_OFF_Y)
+        self._dvc_rules.SetTextValue(cfg.label or "", row, _RC_LABEL)
         self._dvc_rules.SetTextValue("yes" if cfg.use_pad_centroid else "", row, _RC_CENTRD)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
@@ -366,8 +395,13 @@ class FootprintRulesDialog(wx.Dialog):
         self._updating = False
 
     def _enable_edit_fields(self, enabled: bool) -> None:
-        for ctrl in (self._txt_dia, self._txt_off_x, self._txt_off_y,
-                     self._txt_label, self._chk_centroid):
+        for ctrl in (
+            self._txt_dia,
+            self._txt_off_x,
+            self._txt_off_y,
+            self._txt_label,
+            self._chk_centroid,
+        ):
             ctrl.Enable(enabled)
 
     def _generate_preview_pdf(
@@ -378,6 +412,7 @@ class FootprintRulesDialog(wx.Dialog):
     ) -> Optional[str]:
         from enclosure_template import generate_enclosure_pdf
         from panel_config import PanelConfig
+
         full = load_panel_config(self._board_path or "", self._plugin_dir)
         merged_fps = dict(self._rules)
         if extra_fp_id is not None and extra_cfg is not None:
@@ -417,7 +452,9 @@ class FootprintRulesDialog(wx.Dialog):
         if self._use_webview:
             self._webview.LoadURL("file://" + path)
         else:
-            import subprocess, sys
+            import subprocess
+            import sys
+
             if sys.platform == "darwin":
                 subprocess.Popen(["open", path])
             elif sys.platform == "win32":
@@ -442,12 +479,15 @@ class FootprintRulesDialog(wx.Dialog):
         # Default fields for a new rule — LEDs get smaller diameter + centroid on
         cand = self._candidates[row]
         is_led = bool(_LED_RE.match(cand.refs[0]) if cand.refs else False)
-        self._fill_fields(FootprintHoleConfig(
-            hole_dia=3.2 if is_led else 8.0,
-            offset_x=0.0, offset_y=0.0,
-            label=cand.example_label,
-            use_pad_centroid=is_led,
-        ))
+        self._fill_fields(
+            FootprintHoleConfig(
+                hole_dia=3.2 if is_led else 8.0,
+                offset_x=0.0,
+                offset_y=0.0,
+                label=cand.example_label,
+                use_pad_centroid=is_led,
+            )
+        )
         self._enable_edit_fields(True)
 
     def _on_rule_selected(self, event: Any) -> None:
@@ -486,8 +526,9 @@ class FootprintRulesDialog(wx.Dialog):
             return
         cfg = self._cfg_from_fields()
         if cfg is None:
-            wx.MessageBox("Please enter a valid hole diameter.",
-                          "Invalid Input", wx.OK | wx.ICON_WARNING)
+            wx.MessageBox(
+                "Please enter a valid hole diameter.", "Invalid Input", wx.OK | wx.ICON_WARNING
+            )
             return
         cand = self._candidates[self._sel_candidate]
         fp_id = cand.fp_id
@@ -499,14 +540,16 @@ class FootprintRulesDialog(wx.Dialog):
         else:
             self._rule_keys.append(fp_id)
             self._rules[fp_id] = cfg
-            self._dvc_rules.AppendItem([
-                fp_id,
-                f"{cfg.hole_dia:.2f}",
-                f"{cfg.offset_x:+.2f}",
-                f"{cfg.offset_y:+.2f}",
-                cfg.label or "",
-                "yes" if cfg.use_pad_centroid else "",
-            ])
+            self._dvc_rules.AppendItem(
+                [
+                    fp_id,
+                    f"{cfg.hole_dia:.2f}",
+                    f"{cfg.offset_x:+.2f}",
+                    f"{cfg.offset_y:+.2f}",
+                    cfg.label or "",
+                    "yes" if cfg.use_pad_centroid else "",
+                ]
+            )
         # Remove from candidates
         del self._candidates[self._sel_candidate]
         self._sel_candidate = None

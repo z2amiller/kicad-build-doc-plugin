@@ -1,4 +1,5 @@
 """Bulk Description/Notes editor dialog for footprints on the board."""
+
 from __future__ import annotations
 
 from typing import Optional
@@ -57,12 +58,12 @@ class BulkEditDialog(wx.Dialog):
             style=dv.DV_ROW_LINES | dv.DV_VERT_RULES,
         )
         self._dvc.AppendToggleColumn("", width=30)
-        self._dvc.AppendTextColumn("Ref",         width=60,  mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc.AppendTextColumn("Value",       width=100, mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc.AppendTextColumn("Type",        width=130, mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc.AppendTextColumn("Footprint",   width=160, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc.AppendTextColumn("Ref", width=60, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc.AppendTextColumn("Value", width=100, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc.AppendTextColumn("Type", width=130, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc.AppendTextColumn("Footprint", width=160, mode=dv.DATAVIEW_CELL_INERT)
         self._dvc.AppendTextColumn("Description", width=180, mode=dv.DATAVIEW_CELL_INERT)
-        self._dvc.AppendTextColumn("Notes",       width=180, mode=dv.DATAVIEW_CELL_INERT)
+        self._dvc.AppendTextColumn("Notes", width=180, mode=dv.DATAVIEW_CELL_INERT)
 
         self._dvc.Bind(dv.EVT_DATAVIEW_SELECTION_CHANGED, self._on_selection_changed)
         vbox.Add(self._dvc, proportion=1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=10)
@@ -116,8 +117,9 @@ class BulkEditDialog(wx.Dialog):
         self._dvc.DeleteAllItems()
         for row in self._rows:
             fp_name = row.fp_id.split(":", 1)[-1]
-            self._dvc.AppendItem([False, row.ref, row.value, row.fp_type,
-                                   fp_name, row.description, row.notes])
+            self._dvc.AppendItem(
+                [False, row.ref, row.value, row.fp_type, fp_name, row.description, row.notes]
+            )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -192,4 +194,5 @@ class BulkEditDialog(wx.Dialog):
             self.EndModal(wx.ID_OK)
         except Exception:
             import traceback
+
             wx.MessageBox(traceback.format_exc(), "Error", wx.OK | wx.ICON_ERROR)

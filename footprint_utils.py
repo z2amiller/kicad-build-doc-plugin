@@ -1,10 +1,11 @@
 """Helpers for working with kipy footprint objects."""
+
 from __future__ import annotations
 
 import os
 import re
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 _WEBVIEW_AVAILABLE: Optional[bool] = None
 
@@ -15,6 +16,7 @@ def check_webview() -> bool:
     if _WEBVIEW_AVAILABLE is None:
         try:
             import wx.html2  # noqa: F401
+
             _WEBVIEW_AVAILABLE = True
         except Exception:
             _WEBVIEW_AVAILABLE = False

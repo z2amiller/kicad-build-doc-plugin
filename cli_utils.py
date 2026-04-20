@@ -1,4 +1,5 @@
 """Helpers for locating and invoking kicad-cli."""
+
 from __future__ import annotations
 
 import os

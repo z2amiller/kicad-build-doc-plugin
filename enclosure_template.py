@@ -1,4 +1,5 @@
 """1:1 scale enclosure drilling template PDF generation."""
+
 from __future__ import annotations
 
 import math
@@ -48,7 +49,8 @@ def _apply_snap(ex: float, ey: float, snap: SnapConfig) -> Tuple[float, float]:
 @dataclass
 class TaydaHole:
     """One drilled hole in Tayda's coordinate system (mm from face centre)."""
-    side: str        # "A" = front face, "B" = top face
+
+    side: str  # "A" = front face, "B" = top face
     diameter_mm: float
     x_mm: float
     y_mm: float
@@ -140,8 +142,14 @@ class _EnclosureRenderer:
 
     # ── Drawing primitives ────────────────────────────────────────────────────
 
-    def draw_hole(self, ex: float, ey: float, dia: float, label: str,
-                  color: Tuple[float, float, float] = (0, 0, 0)) -> None:
+    def draw_hole(
+        self,
+        ex: float,
+        ey: float,
+        dia: float,
+        label: str,
+        color: Tuple[float, float, float] = (0, 0, 0),
+    ) -> None:
         """Draw a circle + crosshairs + labels at enclosure position (ex, ey)."""
         if self.snap is not None:
             ex, ey = _apply_snap(ex, ey, self.snap)
@@ -237,9 +245,14 @@ class _EnclosureRenderer:
 
     # ── Hole groups ───────────────────────────────────────────────────────────
 
-    def draw_footprint_holes(self, board, fp_config: Dict, log,
-                              highlight_fp_ids: Optional[Set[str]] = None,
-                              highlight_refs: Optional[Set[str]] = None) -> None:
+    def draw_footprint_holes(
+        self,
+        board,
+        fp_config: Dict,
+        log,
+        highlight_fp_ids: Optional[Set[str]] = None,
+        highlight_refs: Optional[Set[str]] = None,
+    ) -> None:
         """Iterate fp_config footprints and draw their holes."""
         for fp in safe_get_footprints(board, log):
             fp_id = get_fp_id(fp)
@@ -253,17 +266,15 @@ class _EnclosureRenderer:
             ey = ry + enc_dy
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
             ref = fp.reference_field.text.value
-            highlighted = (
-                (highlight_refs and ref in highlight_refs)
-                or (highlight_fp_ids and fp_id in highlight_fp_ids)
+            highlighted = (highlight_refs and ref in highlight_refs) or (
+                highlight_fp_ids and fp_id in highlight_fp_ids
             )
             color = (0.8, 0.0, 0.0) if highlighted else (0, 0, 0)
             self.draw_hole(ex, ey, cfg.hole_dia, label, color=color)
             log(
                 f"    {label}: ref ({rx:.2f}, {ry:.2f})"
                 f"  offset ({cfg.offset_x:+.1f}, {cfg.offset_y:+.1f})"
-                f"  hole ({ex:.2f}, {ey:.2f}) mm"
-                + (" [centroid]" if cfg.use_pad_centroid else "")
+                f"  hole ({ex:.2f}, {ey:.2f}) mm" + (" [centroid]" if cfg.use_pad_centroid else "")
             )
 
     def draw_led_holes(self, board, fp_config: Dict, log) -> None:
@@ -283,10 +294,7 @@ class _EnclosureRenderer:
             ey = raw_y + enc_dy
             label = cfg.label or "LED"
             self.draw_hole(ex, ey, cfg.hole_dia, label)
-            log(
-                f"    LED (back-side {ref}): enc ({ex:.1f}, {ey:.1f}) mm"
-                f"  \u00f8{cfg.hole_dia} mm"
-            )
+            log(f"    LED (back-side {ref}): enc ({ex:.1f}, {ey:.1f}) mm  \u00f8{cfg.hole_dia} mm")
 
     def draw_side_b_holes(self, side_b: List, log) -> None:
         """Draw Side B (top face) holes on the top tab and record them for Tayda.
@@ -298,8 +306,8 @@ class _EnclosureRenderer:
         if not side_b:
             return
         smm = self.scale_mm
-        enc_h = self.fh / smm   # face height in mm
-        enc_d = self.td / smm   # depth in mm
+        enc_h = self.fh / smm  # face height in mm
+        enc_d = self.td / smm  # depth in mm
         c = self.c
         # Label the top tab
         tab_cx_pt = self.ox
@@ -310,15 +318,18 @@ class _EnclosureRenderer:
         c.drawCentredString(tab_cx_pt, tab_cy_pt + self.td / 2 - 3.5 * smm, "SIDE B — TOP FACE")
         c.restoreState()
         for hole in side_b:
-            self.holes.append(TaydaHole(
-                side="B",
-                diameter_mm=hole.diameter_mm,
-                x_mm=hole.x_mm,
-                y_mm=-hole.y_mm,   # negate: wings convention → Tayda convention (positive = toward front)
-                label=hole.label,
-            ))
+            self.holes.append(
+                TaydaHole(
+                    side="B",
+                    diameter_mm=hole.diameter_mm,
+                    x_mm=hole.x_mm,
+                    # negate: wings convention → Tayda convention (positive = toward front)
+                    y_mm=-hole.y_mm,
+                    label=hole.label,
+                )
+            )
             enc_x = hole.x_mm
-            enc_y = enc_h / 2 + enc_d / 2 + hole.y_mm   # positive y_mm = toward back = upward in tab
+            enc_y = enc_h / 2 + enc_d / 2 + hole.y_mm  # positive y_mm = toward back = upward in tab
             hx, hy = self.to_pdf(enc_x, enc_y)
             dia = hole.diameter_mm
             r = (dia / 2) * smm
@@ -340,10 +351,7 @@ class _EnclosureRenderer:
         """Draw fixed hole list."""
         for hole in fixed_holes:
             self.draw_hole(hole.x, hole.y, hole.dia, hole.label)
-            log(
-                f"    {hole.label} (fixed): ({hole.x:.1f}, {hole.y:.1f}) mm"
-                f"  \u00f8{hole.dia} mm"
-            )
+            log(f"    {hole.label} (fixed): ({hole.x:.1f}, {hole.y:.1f}) mm  \u00f8{hole.dia} mm")
 
     # ── Annotation ────────────────────────────────────────────────────────────
 
@@ -358,15 +366,15 @@ class _EnclosureRenderer:
         c.setFillColorRGB(0, 0, 0)
         c.setFont("Helvetica-Bold", 11)
         title_y = fb + fh + td + 10 * MM
-        c.drawCentredString(
-            ox, title_y, f"{project_name} \u2014 Enclosure Drilling Template"
-        )
+        c.drawCentredString(ox, title_y, f"{project_name} \u2014 Enclosure Drilling Template")
         c.setFont("Helvetica", 8)
         c.setFillColorRGB(0.35, 0.35, 0.35)
-        size_label = f"{preset} ({enc_w:.0f}\u00d7{enc_h:.0f} mm)" if preset else f"{enc_w:.0f} \u00d7 {enc_h:.0f} mm"
-        c.drawCentredString(
-            ox, title_y - 5 * MM, f"{size_label} enclosure"
+        size_label = (
+            f"{preset} ({enc_w:.0f}\u00d7{enc_h:.0f} mm)"
+            if preset
+            else f"{enc_w:.0f} \u00d7 {enc_h:.0f} mm"
         )
+        c.drawCentredString(ox, title_y - 5 * MM, f"{size_label} enclosure")
 
         notice_y = fb - td - 7 * MM
         c.setFont("Helvetica-Bold", 9)
@@ -416,11 +424,7 @@ class _EnclosureRenderer:
         footer_left = project_name
         if author:
             footer_left += f"  \u00b7  {author}"
-        page_str = (
-            f"Page {page_num} of {total_pages}"
-            if total_pages
-            else f"Page {page_num}"
-        )
+        page_str = f"Page {page_num} of {total_pages}" if total_pages else f"Page {page_num}"
         c.setStrokeColorRGB(0.8, 0.8, 0.8)
         c.setLineWidth(0.4)
         c.line(MARGIN, 0.55 * inch, pw - MARGIN, 0.55 * inch)
@@ -526,9 +530,9 @@ def generate_enclosure_pdf(
         renderer.draw_fold_lines()
         renderer.draw_centre_lines()
     renderer.draw_snap_lines(config.snap)
-    renderer.draw_footprint_holes(board, fp_config, _log,
-                                  highlight_fp_ids=highlight_fp_ids,
-                                  highlight_refs=highlight_refs)
+    renderer.draw_footprint_holes(
+        board, fp_config, _log, highlight_fp_ids=highlight_fp_ids, highlight_refs=highlight_refs
+    )
     renderer.draw_led_holes(board, fp_config, _log)
     renderer.draw_fixed_holes(fixed_holes, _log)
     if not face_only:
@@ -547,8 +551,10 @@ def generate_enclosure_pdf(
         # Top face (Side B in landscape) becomes Side C (left face) in portrait.
         def _rotate_to_portrait(h: TaydaHole) -> TaydaHole:
             tayda_side = "C" if h.side == "B" else h.side
-            return TaydaHole(side=tayda_side, diameter_mm=h.diameter_mm,
-                             x_mm=h.y_mm, y_mm=-h.x_mm, label=h.label)
+            return TaydaHole(
+                side=tayda_side, diameter_mm=h.diameter_mm, x_mm=h.y_mm, y_mm=-h.x_mm, label=h.label
+            )
+
         holes = [_rotate_to_portrait(h) for h in holes]
     return holes
 
@@ -575,8 +581,9 @@ def get_computed_holes(
             top_pcb_y = bbox.center().y / NM_PER_MM
 
         snap = config.snap
-        r = _EnclosureRenderer(None, 0, 0, 0, 0, 0, 0, 0, board_cx, top_pcb_y,
-                               top_row_mm=snap.top_row_mm)
+        r = _EnclosureRenderer(
+            None, 0, 0, 0, 0, 0, 0, 0, board_cx, top_pcb_y, top_row_mm=snap.top_row_mm
+        )
         results: List[tuple] = []
 
         for fp in safe_get_footprints(board, _log):
@@ -633,8 +640,9 @@ def get_footprint_entries(
         if top_pcb_y is None:
             top_pcb_y = bbox.center().y / NM_PER_MM
 
-        r = _EnclosureRenderer(None, 0, 0, 0, 0, 0, 0, 0, board_cx, top_pcb_y,
-                               top_row_mm=config.snap.top_row_mm)
+        r = _EnclosureRenderer(
+            None, 0, 0, 0, 0, 0, 0, 0, board_cx, top_pcb_y, top_row_mm=config.snap.top_row_mm
+        )
         results: List[dict] = []
 
         for fp in safe_get_footprints(board, _log):
@@ -645,17 +653,21 @@ def get_footprint_entries(
             ref_x, ref_y = _fp_pcb_pos_mm(fp, cfg)
             ref_enc_x, ref_enc_y = r.fp_to_enc(ref_x, ref_y)
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
-            results.append({
-                "fp_id": fp_id,
-                "reference": fp.reference_field.text.value,
-                "label": label,
-                "hole_dia": cfg.hole_dia,
-                "offset_x": cfg.offset_x,
-                "offset_y": cfg.offset_y,
-                "ref_enc_x": ref_enc_x,
-                "ref_enc_y": ref_enc_y,
-                "orientation_rad": fp.orientation.to_radians() if hasattr(fp, "orientation") else 0.0,
-            })
+            results.append(
+                {
+                    "fp_id": fp_id,
+                    "reference": fp.reference_field.text.value,
+                    "label": label,
+                    "hole_dia": cfg.hole_dia,
+                    "offset_x": cfg.offset_x,
+                    "offset_y": cfg.offset_y,
+                    "ref_enc_x": ref_enc_x,
+                    "ref_enc_y": ref_enc_y,
+                    "orientation_rad": fp.orientation.to_radians()
+                    if hasattr(fp, "orientation")
+                    else 0.0,
+                }
+            )
 
         for fp in safe_get_footprints(board, _log):
             ref = fp.reference_field.text.value
@@ -667,18 +679,22 @@ def get_footprint_entries(
             cfg = fp_config.get(fp_id, _DEFAULT_BACK_LED_CFG)
             ref_x, ref_y = _fp_pcb_pos_mm(fp, cfg)
             ref_enc_x, ref_enc_y = r.fp_to_enc(ref_x, ref_y)
-            results.append({
-                "fp_id": fp_id,
-                "reference": ref,
-                "label": cfg.label or "LED",
-                "hole_dia": cfg.hole_dia,
-                "offset_x": cfg.offset_x,
-                "offset_y": cfg.offset_y,
-                "ref_enc_x": ref_enc_x,
-                "ref_enc_y": ref_enc_y,
-                "orientation_rad": fp.orientation.to_radians() if hasattr(fp, "orientation") else 0.0,
-                "use_pad_centroid": True,
-            })
+            results.append(
+                {
+                    "fp_id": fp_id,
+                    "reference": ref,
+                    "label": cfg.label or "LED",
+                    "hole_dia": cfg.hole_dia,
+                    "offset_x": cfg.offset_x,
+                    "offset_y": cfg.offset_y,
+                    "ref_enc_x": ref_enc_x,
+                    "ref_enc_y": ref_enc_y,
+                    "orientation_rad": fp.orientation.to_radians()
+                    if hasattr(fp, "orientation")
+                    else 0.0,
+                    "use_pad_centroid": True,
+                }
+            )
 
         return results
     except Exception as exc:

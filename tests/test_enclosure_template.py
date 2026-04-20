@@ -1,11 +1,12 @@
 import math
-import sys
 import os
+import sys
 from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from kipy.board import BoardLayer
+
 from enclosure_template import TaydaHole, _EnclosureRenderer, _pad_centroid_offset_mm
 from panel_config import SideBHole
 
@@ -45,10 +46,14 @@ def test_centroid_with_fp_offset():
     # Pad1 at fp origin, pad2 at fp_x + 2.54mm.
     fp_x = int(108.76 * NM)
     fp_y = int(100.73 * NM)
-    fp = _make_fp(fp_x, fp_y, [
-        _make_pad(fp_x, fp_y),
-        _make_pad(fp_x + 2_540_000, fp_y),
-    ])
+    fp = _make_fp(
+        fp_x,
+        fp_y,
+        [
+            _make_pad(fp_x, fp_y),
+            _make_pad(fp_x + 2_540_000, fp_y),
+        ],
+    )
     dx, dy = _pad_centroid_offset_mm(fp)
     assert abs(dx - 1.27) < 1e-6
     assert abs(dy) < 1e-6
@@ -64,7 +69,9 @@ def test_centroid_rotated_90():
 
 def test_centroid_b_cu_negates_x():
     # B_Cu footprint: local X is mirrored, so dx is negated.
-    fp = _make_fp(0, 0,
+    fp = _make_fp(
+        0,
+        0,
         [_make_pad(0, 0), _make_pad(2_540_000, 0)],
         layer=BoardLayer.BL_B_Cu,
     )
@@ -97,10 +104,11 @@ def test_centroid_missing_definition_returns_zero():
 
 # ── Side B hole rendering ─────────────────────────────────────────────────────
 
+
 def _make_renderer(enc_w=62.0, enc_h=119.5, enc_d=31.0):
     """Build a minimal _EnclosureRenderer with a mock canvas and sane dimensions."""
-    from reportlab.lib.units import inch
     from reportlab.lib.pagesizes import letter
+
     MM = 72.0 / 25.4
     pw, ph = letter
     ox = pw / 2
@@ -112,16 +120,25 @@ def _make_renderer(enc_w=62.0, enc_h=119.5, enc_d=31.0):
     fb = oy - fh / 2
     c = MagicMock()
     return _EnclosureRenderer(
-        c=c, ox=ox, oy=oy, fl=fl, fb=fb, fw=fw, fh=fh, td=td,
-        board_cx=0, top_pcb_y=0, scale_mm=MM,
+        c=c,
+        ox=ox,
+        oy=oy,
+        fl=fl,
+        fb=fb,
+        fw=fw,
+        fh=fh,
+        td=td,
+        board_cx=0,
+        top_pcb_y=0,
+        scale_mm=MM,
     )
 
 
 def test_side_b_holes_recorded_with_side_b():
     r = _make_renderer()
     holes = [
-        SideBHole(label="Input",  diameter_mm=9.53, x_mm=-15.0, y_mm=0.0),
-        SideBHole(label="Output", diameter_mm=9.53, x_mm=15.0,  y_mm=0.0),
+        SideBHole(label="Input", diameter_mm=9.53, x_mm=-15.0, y_mm=0.0),
+        SideBHole(label="Output", diameter_mm=9.53, x_mm=15.0, y_mm=0.0),
     ]
     r.draw_side_b_holes(holes, log=lambda m: None)
     assert len(r.holes) == 2
@@ -136,7 +153,7 @@ def test_side_b_hole_coordinates_preserved():
     r.draw_side_b_holes(holes, log=lambda m: None)
     h = r.holes[0]
     assert h.x_mm == 5.5
-    assert h.y_mm == 3.2   # negated: wings -3.2 (toward front) → Tayda +3.2 (toward front)
+    assert h.y_mm == 3.2  # negated: wings -3.2 (toward front) → Tayda +3.2 (toward front)
     assert h.diameter_mm == 12.0
     assert h.label == "DC"
 
@@ -149,15 +166,14 @@ def test_side_b_empty_list_draws_nothing():
 
 def test_rotated_preset_transforms_tayda_coords():
     """For -R presets, Tayda x/y are portrait coords: x_P = -y_L, y_P = x_L."""
-    from unittest.mock import patch
-    from enclosure_template import generate_enclosure_pdf
+
     from panel_config import EnclosureConfig, FixedHole, PanelConfig
-    import tempfile, os
 
     # Enclosure with rotated=True; one fixed hole at landscape (30, -10)
-    config = PanelConfig(
-        enclosure=EnclosureConfig(width=145.0, height=121.0, depth=37.0,
-                                  preset="1590XX-R", rotated=True),
+    PanelConfig(
+        enclosure=EnclosureConfig(
+            width=145.0, height=121.0, depth=37.0, preset="1590XX-R", rotated=True
+        ),
         footprints={},
         fixed_holes=[FixedHole(label="Test", dia=9.5, x=30.0, y=-10.0)],
         side_b=[],
@@ -169,6 +185,7 @@ def test_rotated_preset_transforms_tayda_coords():
     # by inspecting what the renderer records and transform logic.
     # We verify the formula: x_P = -y_L = -(-10) = 10, y_P = x_L = 30
     import enclosure_template as et
+
     hole_in = et.TaydaHole(side="A", diameter_mm=9.5, x_mm=30.0, y_mm=-10.0, label="Test")
     hole_out = et.TaydaHole(
         side=hole_in.side,

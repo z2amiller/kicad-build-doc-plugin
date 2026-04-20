@@ -1,9 +1,10 @@
 """Tests for tayda_manifest.py."""
+
 import os
 import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import pytest
 from pypdf import PdfReader
 
 from enclosure_template import TaydaHole

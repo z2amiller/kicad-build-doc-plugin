@@ -135,7 +135,11 @@ def collect_bom(board) -> List[Dict]:
 
         if not control:
             attrs = fp.attributes
-            if attrs.exclude_from_bill_of_materials or attrs.exclude_from_position_files or attrs.do_not_populate:
+            if (
+                attrs.exclude_from_bill_of_materials
+                or attrs.exclude_from_position_files
+                or attrs.do_not_populate
+            ):
                 continue
 
         val = fp.value_field.text.value

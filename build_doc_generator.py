@@ -17,6 +17,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import PageBreak, SimpleDocTemplate
 
+
 @dataclass
 class GeneratorParams:
     project_name: str
@@ -32,15 +33,15 @@ class GeneratorParams:
     blurb: str = ""
 
 
-from board_image import apply_board_pdf_to_cover, export_board_pdf
-from bom_pages import build_bom_story
-from cover_page import build_cover_story
-from enclosure_template import TaydaHole, board_size_mm, generate_enclosure_pdf
-from footprint_utils import get_board_path
-from panel_config import load_panel_config, snapshot_global_to_project
-from pdf_utils import MARGIN, make_page_footer, merge_pdfs
-from schematic_export import export_schematic_pdf, stamp_schematic_footer
-from tayda_manifest import generate_tayda_manifest_pdf
+from board_image import apply_board_pdf_to_cover, export_board_pdf  # noqa: E402
+from bom_pages import build_bom_story  # noqa: E402
+from cover_page import build_cover_story  # noqa: E402
+from enclosure_template import board_size_mm, generate_enclosure_pdf  # noqa: E402
+from footprint_utils import get_board_path  # noqa: E402
+from panel_config import load_panel_config, snapshot_global_to_project  # noqa: E402
+from pdf_utils import MARGIN, make_page_footer, merge_pdfs  # noqa: E402
+from schematic_export import export_schematic_pdf, stamp_schematic_footer  # noqa: E402
+from tayda_manifest import generate_tayda_manifest_pdf  # noqa: E402
 
 
 class BuildDocGenerator:
@@ -111,7 +112,10 @@ class BuildDocGenerator:
             if board_pdf_path and board_slot is not None:
                 overlaid = os.path.join(self.tmpdir, "body_with_board.pdf")
                 apply_board_pdf_to_cover(
-                    body_pdf, board_pdf_path, board_slot, overlaid,
+                    body_pdf,
+                    board_pdf_path,
+                    board_slot,
+                    overlaid,
                     board_size_mm=board_size_mm(self.board),
                     log=self._log,
                 )
