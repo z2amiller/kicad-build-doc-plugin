@@ -5,52 +5,78 @@
     "height": 119.5,
     "depth": 38.1,
     "rotated": false,
+    "snap": {
+      "radius_mm": 0.75,
+      "top_row_mm": 38,
+      "x": [ -20.5, -16.5, 0, 16.5, 20.5 ],
+      "y": [-45.2, -25.4, -12.8, 12.6, 38 ]
+    },
     "side_b_layouts": [
       {
         "name": "Standard (Input + Output + DC)",
         "holes": [
-          {"label": "Input",  "diameter_mm": 9.8, "x_mm": -15.2, "y_mm": 5.8},
-          {"label": "Output", "diameter_mm": 9.8, "x_mm":  15.2, "y_mm": 5.8},
+          {"label": "Output",  "diameter_mm": 9.8, "x_mm": -15.2, "y_mm": 5.8},
+          {"label": "Input", "diameter_mm": 9.8, "x_mm":  15.2, "y_mm": 5.8},
           {"label": "DC",     "diameter_mm": 8.2, "x_mm":   0.0, "y_mm": -4.4}
         ]
       }
     ]
-  },
-  "125B-R": {
-    "width": 119.5,
-    "height": 62.0,
-    "depth": 38.1,
-    "rotated": true,
-    "side_b_layouts": []
   },
   "1590B": {
     "width": 60.0,
     "height": 112.0,
     "depth": 31.0,
     "rotated": false,
+    "snap": {
+      "radius_mm": 0.75,
+      "top_row_mm": 38,
+      "x": [ 20.5, -16.5, 0, 16.5, 20.5 ],
+      "y": [-38, -12.8, 12.6, 38 ]
+    },
     "side_b_layouts": [
       {
         "name": "Standard (Input + Output + DC)",
         "holes": [
-          {"label": "Input",  "diameter_mm": 9.8, "x_mm": -14.0, "y_mm": 5.8},
-          {"label": "Output", "diameter_mm": 9.8, "x_mm":  14.0, "y_mm": 5.8},
+          {"label": "Output",  "diameter_mm": 9.8, "x_mm": -14.0, "y_mm": 5.8},
+          {"label": "Input", "diameter_mm": 9.8, "x_mm":  14.0, "y_mm": 5.8},
           {"label": "DC",     "diameter_mm": 8.2, "x_mm":   0.0, "y_mm": -4.4}
         ]
       }
     ]
-  },
-  "1590B-R": {
-    "width": 112.0,
-    "height": 60.0,
-    "depth": 31.0,
-    "rotated": true,
-    "side_b_layouts": []
   },
   "1590BB": {
     "width": 94.0,
     "height": 119.5,
     "depth": 34.0,
     "rotated": false,
+    "snap": {
+      "radius_mm": 0.75,
+      "top_row_mm": 38,
+      "x": [-41, -20.5, -16.5, 0, 16.5, 20.5, 41 ],
+      "y": [-45.2, -25.4, -12.8, 12.6, 38 ]
+    },
+    "side_b_layouts": [
+      {
+        "name": "Standard (Input + Output + DC)",
+        "holes": [
+          {"label": "Output",  "diameter_mm": 9.8, "x_mm": -20.0, "y_mm": 5.8},
+          {"label": "Input", "diameter_mm": 9.8, "x_mm":  20.0, "y_mm": 5.8},
+          {"label": "DC",     "diameter_mm": 8.2, "x_mm":   0.0, "y_mm": -4.4}
+        ]
+      }
+    ]
+  },
+  "1590XX": {
+    "width": 145.0,
+    "height": 121.0,
+    "depth": 37.0,
+    "rotated": true,
+    "snap": {
+      "radius_mm": 0.75,
+      "top_row_mm": 38,
+      "x": [-55, -33, -11, 11, 33, 55 ],
+      "y": [-45.2, -25.4, -12.8, 12.6, 38 ]
+    },
     "side_b_layouts": [
       {
         "name": "Standard (Input + Output + DC)",
@@ -61,35 +87,5 @@
         ]
       }
     ]
-  },
-  "1590BB-R": {
-    "width": 119.5,
-    "height": 94.0,
-    "depth": 34.0,
-    "rotated": true,
-    "side_b_layouts": []
-  },
-  "1590XX": {
-    "width": 121.0,
-    "height": 145.0,
-    "depth": 37.0,
-    "rotated": false,
-    "side_b_layouts": [
-      {
-        "name": "Standard (Input + Output + DC)",
-        "holes": [
-          {"label": "Input",  "diameter_mm": 9.8, "x_mm": -25.0, "y_mm": 5.8},
-          {"label": "Output", "diameter_mm": 9.8, "x_mm":  25.0, "y_mm": 5.8},
-          {"label": "DC",     "diameter_mm": 8.2, "x_mm":   0.0, "y_mm": -4.4}
-        ]
-      }
-    ]
-  },
-  "1590XX-R": {
-    "width": 145.0,
-    "height": 121.0,
-    "depth": 37.0,
-    "rotated": true,
-    "side_b_layouts": []
   }
 }

@@ -18,8 +18,12 @@
       "hole_dia": 3.2,
       "offset_x": 0,
       "offset_y": 0,
-      "label": "LED",
       "use_pad_centroid": true
+    },
+    "_MB_potentiometers:16MM_DUALGANG": {
+      "hole_dia": 8.0,
+      "offset_x": 0.0,
+      "offset_y": 16.0
     }
   },
   "fixed_holes": [
