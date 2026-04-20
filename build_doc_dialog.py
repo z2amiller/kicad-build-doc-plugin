@@ -206,7 +206,7 @@ class BuildDocDialog(wx.Dialog):
             dlg = DrillEditorDialog(self, self.board, plugin_dir)
             dlg.ShowModal()
             dlg.Destroy()
-            self.refresh_preview()
+            wx.CallAfter(self.refresh_preview)
         except Exception:
             import traceback
             wx.MessageBox(traceback.format_exc(), "Drill Editor Error", wx.OK | wx.ICON_ERROR)

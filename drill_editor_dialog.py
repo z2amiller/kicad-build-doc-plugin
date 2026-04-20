@@ -765,6 +765,10 @@ class DrillEditorDialog(wx.Dialog):
         with open(self._project_json, "w") as fh:
             json.dump(existing, fh, indent=2)
 
+        if self._fp_preview_timer is not None:
+            self._fp_preview_timer.Stop()
+            self._fp_preview_timer = None
+
         self.EndModal(wx.ID_OK)
 
     def Destroy(self) -> bool:

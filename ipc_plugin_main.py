@@ -132,9 +132,11 @@ def main() -> int:
                 time.sleep(3)
                 try:
                     kicad.ping()
-                except Exception:
+                except (ConnectionRefusedError, FileNotFoundError, OSError):
                     wx.CallAfter(dlg.EndModal, wx.ID_CANCEL)
                     return
+                except Exception:
+                    pass  # transient/concurrent error; keep watching
 
         threading.Thread(target=_watch_kicad, daemon=True).start()
         dlg.ShowModal()
