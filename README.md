@@ -265,6 +265,34 @@ The resulting holes appear in the read-only Side B list at the bottom of the dia
 
 > **Note:** Top-face hole coordinates in the built-in presets are reasonable approximations based on the 125B as a reference. Verify against your specific enclosure before drilling — Tayda's published drawings are the authoritative source.
 
+#### Snap lines
+
+Enclosure presets can define **snap lines** — a grid of standard X and Y positions that hole coordinates are snapped to if they fall within a configurable radius. This corrects small PCB placement errors so holes land on the standard control spacing for that enclosure rather than being off by a fraction of a millimetre.
+
+When snap is active, faint dashed blue guidelines appear on the drilling template preview at each snap position, making it easy to see whether your holes align with the expected layout.
+
+The 125B preset ships with a default snap configuration. To customise snap for a different enclosure — or to override the 125B defaults for a specific project — add a `snap` block to the relevant `panel_config.json`:
+
+```json
+"snap": {
+  "radius_mm": 0.75,
+  "top_row_mm": 38,
+  "x": [ -20.5, -16.5, 0, 16.5, 20.5 ],
+  "y": [ -45.2, -25.4, -12.8, 12.6, 38 ]
+}
+```
+
+- **`radius_mm`** — a hole within this distance of a snap line is moved to it. Set to `0` to disable snapping entirely.
+- **`top_row_mm`** — Y position of the topmost control row in enclosure coordinates (mm above centre); used to anchor the overall vertical layout. Defaults to 38.
+- **`x`** — list of X snap positions in mm from the enclosure centre (positive = right).
+- **`y`** — list of Y snap positions in mm from the enclosure centre (positive = up).
+
+To add snap to a preset rather than a project, add the same `snap` block directly to the enclosure's entry in `enclosure_presets.json` (in the plugin installation directory). This makes the snap lines available to all projects that use that preset, without requiring a per-project override.
+
+X and Y axes are snapped independently — a hole near an X snap line only has its X corrected; Y is unchanged unless it also falls near a Y snap line.
+
+---
+
 #### Tayda drill manifest
 
 If you use [Tayda Electronics](https://www.taydaelectronics.com) custom drilling, enable the **Tayda Drill Manifest** checkbox in the main dialog. This generates an additional PDF page — a table of Side / Diameter / X / Y suitable for pasting into Tayda's custom drill order form.
