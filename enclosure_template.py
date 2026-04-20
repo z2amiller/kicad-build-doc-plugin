@@ -12,17 +12,37 @@ from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas as rl_canvas
 
 from footprint_utils import get_field, get_fp_id, safe_get_footprints, safe_get_shapes
-from panel_config import FootprintHoleConfig, PanelConfig
+from panel_config import FootprintHoleConfig, PanelConfig, SnapConfig
 from pdf_utils import MARGIN
 
 MM = 72.0 / 25.4  # PDF points per mm
-TOP_ROW_MM = 38.0  # enclosure Y of the topmost control row
 NM_PER_MM = 1_000_000  # kipy uses nanometres
 
 _LED_RE = re.compile(r"^(D|LED)\d", re.IGNORECASE)
 _DEFAULT_BACK_LED_CFG = FootprintHoleConfig(
     hole_dia=3.2, offset_x=0.0, offset_y=0.0, label="LED", use_pad_centroid=True
 )
+_DEFAULT_TOP_ROW_MM = 38.0  # fallback when no snap config is provided
+
+
+def _apply_snap(ex: float, ey: float, snap: SnapConfig) -> Tuple[float, float]:
+    """Snap (ex, ey) to the nearest snap line on each axis if within snap.radius_mm.
+
+    X and Y axes are snapped independently.  A hole near an X snap line only has
+    its X corrected; Y is unchanged unless it is also near a Y snap line.
+    """
+    if snap.radius_mm <= 0:
+        return ex, ey
+    r = snap.radius_mm
+    for sx in snap.x:
+        if abs(ex - sx) <= r:
+            ex = sx
+            break
+    for sy in snap.y:
+        if abs(ey - sy) <= r:
+            ey = sy
+            break
+    return ex, ey
 
 
 @dataclass
@@ -76,6 +96,8 @@ class _EnclosureRenderer:
         board_cx: float,
         top_pcb_y: float,
         scale_mm: float = MM,
+        top_row_mm: float = _DEFAULT_TOP_ROW_MM,
+        snap: Optional[SnapConfig] = None,
     ) -> None:
         self.c = c
         self.ox = ox
@@ -88,6 +110,8 @@ class _EnclosureRenderer:
         self.board_cx = board_cx
         self.top_pcb_y = top_pcb_y
         self.scale_mm = scale_mm
+        self.top_row_mm = top_row_mm
+        self.snap = snap
         self.holes: List[TaydaHole] = []
 
     # ── Coordinate helpers ────────────────────────────────────────────────────
@@ -107,11 +131,11 @@ class _EnclosureRenderer:
 
         X is mirrored around the board bounding-box centre (panel viewed from
         outside = PCB front mirrored).  Y is anchored so the topmost external
-        control hole lands at TOP_ROW_MM above the enclosure centre.
+        control hole lands at top_row_mm above the enclosure centre.
         """
         return (
             -(pcb_x - self.board_cx) + off_x,
-            (TOP_ROW_MM + self.top_pcb_y - pcb_y) + off_y,
+            (self.top_row_mm + self.top_pcb_y - pcb_y) + off_y,
         )
 
     # ── Drawing primitives ────────────────────────────────────────────────────
@@ -119,6 +143,8 @@ class _EnclosureRenderer:
     def draw_hole(self, ex: float, ey: float, dia: float, label: str,
                   color: Tuple[float, float, float] = (0, 0, 0)) -> None:
         """Draw a circle + crosshairs + labels at enclosure position (ex, ey)."""
+        if self.snap is not None:
+            ex, ey = _apply_snap(ex, ey, self.snap)
         self.holes.append(TaydaHole(side="A", diameter_mm=dia, x_mm=ex, y_mm=ey, label=label))
         c = self.c
         smm = self.scale_mm
@@ -187,6 +213,26 @@ class _EnclosureRenderer:
         c.setLineWidth(0.3)
         c.line(fl - td - ext, oy, fl + fw + td + ext, oy)
         c.line(ox, fb - td - ext, ox, fb + fh + td + ext)
+        c.restoreState()
+
+    def draw_snap_lines(self, snap: SnapConfig) -> None:
+        """Draw faint dashed guidelines at each snap position within the face."""
+        if snap.radius_mm <= 0 or self.c is None:
+            return
+        fl, fb, fw, fh = self.fl, self.fb, self.fw, self.fh
+        c = self.c
+        c.saveState()
+        c.setDash([2, 4])
+        c.setLineWidth(0.2)
+        c.setStrokeColorRGB(0.55, 0.55, 0.85)
+        for sx in snap.x:
+            px, _ = self.to_pdf(sx, 0)
+            if fl <= px <= fl + fw:
+                c.line(px, fb, px, fb + fh)
+        for sy in snap.y:
+            _, py = self.to_pdf(0, sy)
+            if fb <= py <= fb + fh:
+                c.line(fl, py, fl + fw, py)
         c.restoreState()
 
     # ── Hole groups ───────────────────────────────────────────────────────────
@@ -426,7 +472,7 @@ def generate_enclosure_pdf(
     else:
         _log(
             f"  Top control row anchor: effective pcb_y = {top_pcb_y:.2f} mm"
-            f" → enc_y = {TOP_ROW_MM} mm"
+            f" → enc_y = {config.snap.top_row_mm} mm"
         )
 
     if face_only:
@@ -468,6 +514,8 @@ def generate_enclosure_pdf(
         board_cx=board_cx,
         top_pcb_y=top_pcb_y,
         scale_mm=scale_mm,
+        top_row_mm=config.snap.top_row_mm,
+        snap=config.snap,
     )
 
     if face_only:
@@ -477,6 +525,7 @@ def generate_enclosure_pdf(
         renderer.draw_outline()
         renderer.draw_fold_lines()
         renderer.draw_centre_lines()
+    renderer.draw_snap_lines(config.snap)
     renderer.draw_footprint_holes(board, fp_config, _log,
                                   highlight_fp_ids=highlight_fp_ids,
                                   highlight_refs=highlight_refs)
@@ -525,7 +574,9 @@ def get_computed_holes(
         if top_pcb_y is None:
             top_pcb_y = bbox.center().y / NM_PER_MM
 
-        r = _EnclosureRenderer(None, 0, 0, 0, 0, 0, 0, 0, board_cx, top_pcb_y)
+        snap = config.snap
+        r = _EnclosureRenderer(None, 0, 0, 0, 0, 0, 0, 0, board_cx, top_pcb_y,
+                               top_row_mm=snap.top_row_mm)
         results: List[tuple] = []
 
         for fp in safe_get_footprints(board, _log):
@@ -536,7 +587,7 @@ def get_computed_holes(
             ref_x, ref_y = _fp_pcb_pos_mm(fp, cfg)
             rx, ry = r.fp_to_enc(ref_x, ref_y)
             enc_dx, enc_dy = _fp_enc_offset(fp, cfg)
-            ex, ey = rx + enc_dx, ry + enc_dy
+            ex, ey = _apply_snap(rx + enc_dx, ry + enc_dy, snap)
             label = cfg.label or get_field(fp, "Control") or fp.reference_field.text.value
             results.append((label, cfg.hole_dia, ex, ey))
 
@@ -551,7 +602,7 @@ def get_computed_holes(
             pcb_x, pcb_y = _fp_pcb_pos_mm(fp, cfg)
             enc_dx, enc_dy = _fp_enc_offset(fp, cfg)
             rx, ry = r.fp_to_enc(pcb_x, pcb_y)
-            ex, ey = rx + enc_dx, ry + enc_dy
+            ex, ey = _apply_snap(rx + enc_dx, ry + enc_dy, snap)
             results.append((cfg.label or "LED", cfg.hole_dia, ex, ey))
 
         return results
@@ -582,7 +633,8 @@ def get_footprint_entries(
         if top_pcb_y is None:
             top_pcb_y = bbox.center().y / NM_PER_MM
 
-        r = _EnclosureRenderer(None, 0, 0, 0, 0, 0, 0, 0, board_cx, top_pcb_y)
+        r = _EnclosureRenderer(None, 0, 0, 0, 0, 0, 0, 0, board_cx, top_pcb_y,
+                               top_row_mm=config.snap.top_row_mm)
         results: List[dict] = []
 
         for fp in safe_get_footprints(board, _log):

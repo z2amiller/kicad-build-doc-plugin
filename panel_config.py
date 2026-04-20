@@ -61,11 +61,21 @@ class SideBHole:
 
 
 @dataclass
+class SnapConfig:
+    """Snap-to-grid configuration for front-face hole positions."""
+    radius_mm: float = 0.0            # snap radius; 0 = disabled
+    top_row_mm: float = 38.0          # Y of topmost control row above enclosure centre
+    x: List[float] = field(default_factory=list)   # snap columns (mm from enc centre)
+    y: List[float] = field(default_factory=list)   # snap rows   (mm from enc centre)
+
+
+@dataclass
 class PanelConfig:
     enclosure: EnclosureConfig
     footprints: Dict[str, FootprintHoleConfig]
     fixed_holes: List[FixedHole]
     side_b: List[SideBHole] = field(default_factory=list)
+    snap: SnapConfig = field(default_factory=SnapConfig)
 
 
 def load_text_file(filename: str, dirs: List[str]) -> Optional[str]:
@@ -135,6 +145,15 @@ def _fixed_hole_from_dict(d: dict) -> FixedHole:
     )
 
 
+def _snap_from_dict(d: dict) -> SnapConfig:
+    return SnapConfig(
+        radius_mm=float(d.get("radius_mm", 0.0)),
+        top_row_mm=float(d.get("top_row_mm", 38.0)),
+        x=[float(v) for v in d.get("x", [])],
+        y=[float(v) for v in d.get("y", [])],
+    )
+
+
 def _side_b_hole_from_dict(d: dict) -> SideBHole:
     return SideBHole(
         label=str(d.get("label", "")),
@@ -156,6 +175,7 @@ def _merge_configs(base: dict, override: dict) -> dict:
     result: dict = {}
 
     result["enclosure"] = override.get("enclosure", base.get("enclosure", {}))
+    result["snap"] = override.get("snap", base.get("snap", {}))
 
     base_fps = base.get("footprints", {})
     override_fps = override.get("footprints", {})
@@ -272,4 +292,6 @@ def load_panel_config(
     else:
         side_b = []
 
-    return PanelConfig(enclosure=enclosure, footprints=footprints, fixed_holes=fixed_holes, side_b=side_b)
+    snap = _snap_from_dict(merged["snap"]) if merged.get("snap") else SnapConfig()
+
+    return PanelConfig(enclosure=enclosure, footprints=footprints, fixed_holes=fixed_holes, side_b=side_b, snap=snap)
