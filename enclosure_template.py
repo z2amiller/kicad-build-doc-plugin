@@ -745,17 +745,11 @@ def _pad_centroid_offset_mm(fp) -> tuple:
     if not pads:
         return (0.0, 0.0)
     # kipy reports pad positions in absolute board coordinates (nanometres).
-    # Subtract fp.position to get the offset from the footprint origin.
+    # Subtract fp.position to get the PCB-frame offset of the pad centroid.
+    # No rotation needed — the result is already in PCB frame.
     cx = sum(p.position.x for p in pads) / len(pads) - fp.position.x
     cy = sum(p.position.y for p in pads) / len(pads) - fp.position.y
-    # rotate local offset into PCB frame using fp.orientation
-    try:
-        a = fp.orientation.to_radians()
-        dx, dy = _rotate_vector(cx / NM_PER_MM, cy / NM_PER_MM, a)
-    except Exception:
-        dx = cx / NM_PER_MM
-        dy = cy / NM_PER_MM
-    return (dx, dy)
+    return (cx / NM_PER_MM, cy / NM_PER_MM)
 
 
 def _find_top_anchor(board, fp_config: Dict) -> Optional[float]:

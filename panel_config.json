@@ -1,9 +1,7 @@
 {
   "_comment": "Global panel defaults for Build Document Generator. Override per-project by placing a panel_config.json next to your .kicad_pcb file.",
   "enclosure": {
-    "width": 62,
-    "height": 117,
-    "depth": 35
+    "preset": "125B"
   },
   "footprints": {
     "_MB_switches:SPDT.LUGS": {
