@@ -292,6 +292,12 @@ def load_panel_config(
     else:
         side_b = []
 
-    snap = _snap_from_dict(merged["snap"]) if merged.get("snap") else SnapConfig()
+    if merged.get("snap"):
+        snap = _snap_from_dict(merged["snap"])
+    elif enclosure.preset and enclosure.preset in ENCLOSURE_PRESETS:
+        preset_snap = ENCLOSURE_PRESETS[enclosure.preset].get("snap")
+        snap = _snap_from_dict(preset_snap) if preset_snap else SnapConfig()
+    else:
+        snap = SnapConfig()
 
     return PanelConfig(enclosure=enclosure, footprints=footprints, fixed_holes=fixed_holes, side_b=side_b, snap=snap)
