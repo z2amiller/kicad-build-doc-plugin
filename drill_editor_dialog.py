@@ -16,7 +16,7 @@ import wx.dataview as dv
 from footprint_utils import check_webview, get_board_path
 from panel_config import (
     ENCLOSURE_PRESETS, EnclosureConfig, FixedHole, FootprintHoleConfig,
-    PanelConfig, SideBHole, load_global_config, load_panel_config,
+    PanelConfig, SnapConfig, SideBHole, load_global_config, load_panel_config,
 )
 
 
@@ -34,18 +34,29 @@ class _FpEntry:
     orientation_rad: float = 0.0   # fp board orientation, for offset rotation
     use_pad_centroid: bool = False
     excluded: bool = False         # True = write null override to project config
+    snap: Optional[SnapConfig] = None
 
     @property
     def enc_x(self) -> float:
         cos_a = math.cos(self.orientation_rad)
         sin_a = math.sin(self.orientation_rad)
-        return self.ref_enc_x + cos_a * self.offset_x - sin_a * self.offset_y
+        x = self.ref_enc_x + cos_a * self.offset_x - sin_a * self.offset_y
+        if self.snap is not None and self.snap.radius_mm > 0:
+            for sx in self.snap.x:
+                if abs(x - sx) <= self.snap.radius_mm:
+                    return sx
+        return x
 
     @property
     def enc_y(self) -> float:
         cos_a = math.cos(self.orientation_rad)
         sin_a = math.sin(self.orientation_rad)
-        return self.ref_enc_y + sin_a * self.offset_x + cos_a * self.offset_y
+        y = self.ref_enc_y + sin_a * self.offset_x + cos_a * self.offset_y
+        if self.snap is not None and self.snap.radius_mm > 0:
+            for sy in self.snap.y:
+                if abs(y - sy) <= self.snap.radius_mm:
+                    return sy
+        return y
 
 _PRESET_CHOICES = ["Custom"] + list(ENCLOSURE_PRESETS.keys())
 
@@ -345,6 +356,7 @@ class DrillEditorDialog(wx.Dialog):
                 orientation_rad=e.get("orientation_rad", 0.0),
                 use_pad_centroid=e.get("use_pad_centroid",
                                        orig_cfg.use_pad_centroid if orig_cfg else False),
+                snap=full.snap,
             )
             self._fp_entries.append(fe)
             self._fp_originals[fp_id] = {
@@ -617,6 +629,7 @@ class DrillEditorDialog(wx.Dialog):
             footprints=merged_fps,
             fixed_holes=config.fixed_holes,
             side_b=full.side_b,
+            snap=full.snap,
         )
         highlight_refs: Optional[Set[str]] = None
         if self._fp_selected is not None and self._fp_selected < len(self._fp_entries):
