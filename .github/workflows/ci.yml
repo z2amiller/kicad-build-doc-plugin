@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: kicad-build-doc-plugin
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/kicad-pedal-common
+          path: kicad-pedal-common
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Vendor kicad_pedal_common
+        run: bash kicad-pedal-common/scripts/vendor.sh kicad-build-doc-plugin
+
+      - name: Install dependencies
+        run: |
+          cd kicad-build-doc-plugin
+          pip install ruff pytest pypdf reportlab pillow jsonschema referencing
+
+      - name: Lint
+        run: |
+          cd kicad-build-doc-plugin
+          ruff check .
+
+      - name: Format check
+        run: |
+          cd kicad-build-doc-plugin
+          ruff format --check .
+
+      - name: Test
+        run: |
+          cd kicad-build-doc-plugin
+          pytest tests/ -v

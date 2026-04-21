@@ -60,15 +60,19 @@ def test_centroid_with_fp_offset():
 
 
 def test_centroid_rotated_90():
-    # Footprint at origin, rotated 90°: local (1.27mm, 0) → PCB offset (0, 1.27mm).
-    fp = _make_fp(0, 0, [_make_pad(0, 0), _make_pad(2_540_000, 0)], orientation_deg=90.0)
+    # Footprint at origin, rotated 90° CCW. kipy reports pad positions in absolute
+    # PCB coordinates, so a local (2.54mm, 0) pad appears at absolute (0, 2.54mm).
+    # Centroid offset = (0, 1.27mm) — no orientation math needed on our side.
+    fp = _make_fp(0, 0, [_make_pad(0, 0), _make_pad(0, 2_540_000)], orientation_deg=90.0)
     dx, dy = _pad_centroid_offset_mm(fp)
     assert abs(dx) < 1e-6
     assert abs(dy - 1.27) < 1e-6
 
 
-def test_centroid_b_cu_negates_x():
-    # B_Cu footprint: local X is mirrored, so dx is negated.
+def test_centroid_b_cu_same_as_f_cu():
+    # B.Cu footprints: pad positions are absolute PCB coords just like F.Cu.
+    # No mirroring is applied by _pad_centroid_offset_mm — the caller handles
+    # the enclosure X-mirror separately.
     fp = _make_fp(
         0,
         0,
@@ -76,7 +80,7 @@ def test_centroid_b_cu_negates_x():
         layer=BoardLayer.BL_B_Cu,
     )
     dx, dy = _pad_centroid_offset_mm(fp)
-    assert abs(dx - (-1.27)) < 1e-6
+    assert abs(dx - 1.27) < 1e-6
     assert abs(dy) < 1e-6
 
 

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
-import shutil
 from typing import Optional
+
+from kicad_pedal_common.plotting import find_kicad_cli as _common_find_kicad_cli
 
 _kicad_cli_override: Optional[str] = None
 
@@ -19,21 +20,12 @@ def find_kicad_cli() -> Optional[str]:
     """Return the path to kicad-cli, or None if not found.
 
     Preference order:
-    1. Path provided by the KiCad IPC API (kicad.kicad_cli_path)
-    2. PATH lookup via shutil.which
-    3. Hard-coded candidate paths
+    1. Path provided by the KiCad IPC API (set via set_kicad_cli_path)
+    2. PATH lookup and hard-coded candidates (delegated to kicad_pedal_common)
     """
     if _kicad_cli_override and os.path.exists(_kicad_cli_override):
         return _kicad_cli_override
-    found = shutil.which("kicad-cli")
-    if found:
-        return found
-    candidates = [
-        "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
-        "/usr/local/bin/kicad-cli",
-        "/usr/bin/kicad-cli",
-    ]
-    return next((c for c in candidates if os.path.exists(c)), None)
+    return _common_find_kicad_cli()
 
 
 def kicad_env() -> dict:

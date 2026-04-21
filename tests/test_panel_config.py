@@ -109,32 +109,19 @@ def test_preset_table_has_expected_sizes():
     assert "1590XX" in ENCLOSURE_PRESETS
 
 
-def test_rotated_presets_have_rotated_true():
-    for name, pdata in ENCLOSURE_PRESETS.items():
-        if name.endswith("-R"):
-            assert pdata["rotated"] is True, f"{name} should have rotated=true"
-        else:
-            assert pdata["rotated"] is False, f"{name} should have rotated=false"
-
-
-def test_rotated_preset_sets_rotated_flag(tmp_path):
-    _write_config(
-        tmp_path / "panel_config.json",
-        {
-            "enclosure": {"preset": "1590XX-R"},
-        },
-    )
-    result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))
-    assert result.enclosure.rotated is True
-    assert result.enclosure.width == 145.0
-    assert result.enclosure.height == 121.0
+def test_preset_rotated_flags():
+    # 1590XX is used in landscape orientation (vendor defines it portrait).
+    assert ENCLOSURE_PRESETS["1590XX"]["rotated"] is True
+    # All other current presets are portrait.
+    for name in ("125B", "1590B", "1590BB"):
+        assert ENCLOSURE_PRESETS[name]["rotated"] is False, f"{name} should have rotated=false"
 
 
 def test_non_rotated_preset_rotated_flag_false(tmp_path):
     _write_config(
         tmp_path / "panel_config.json",
         {
-            "enclosure": {"preset": "1590XX"},
+            "enclosure": {"preset": "1590B"},
         },
     )
     result = load_panel_config(str(tmp_path / "board.kicad_pcb"), str(tmp_path))

@@ -109,6 +109,7 @@ def main() -> int:
         logger.info("Connected: board=%s", board.name)
 
         from cli_utils import set_kicad_cli_path
+
         set_kicad_cli_path(getattr(kicad, "kicad_cli_path", None))
     except Exception:
         logger.exception("Failed to connect to KiCad IPC")
