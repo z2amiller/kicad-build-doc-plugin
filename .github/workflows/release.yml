@@ -12,11 +12,21 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: kicad-build-doc-plugin
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/kicad-pedal-common
+          path: kicad-pedal-common
+
+      - name: Vendor kicad_pedal_common
+        run: bash kicad-pedal-common/scripts/vendor.sh kicad-build-doc-plugin
 
       - name: Build PCM archive
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          bash PCM/create_pcm_archive.sh "$VERSION"
+          bash kicad-build-doc-plugin/PCM/create_pcm_archive.sh "$VERSION"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
