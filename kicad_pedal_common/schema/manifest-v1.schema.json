@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/andrewmiller/kicad-pedal-common/schema/manifest-v1.schema.json",
+  "title": "PedalBuildManifest",
+  "description": "Top-level schema for a .manifest.zip produced by manifest-creator and consumed by pedal-build-manager.",
+  "type": "object",
+  "required": ["schema_version", "board_name", "version", "created_at", "board_bounds", "layers", "components"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Manifest schema version. Must be '1.0' for this schema.",
+      "const": "1.0"
+    },
+    "board_name": {
+      "type": "string",
+      "description": "Machine-readable board slug, used as the URL slug in pedal-build-manager. Lowercase, hyphens, no spaces. e.g. fuzz-face",
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "minLength": 2
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Human-readable board name for display in the UI. e.g. Fuzz Face Clone"
+    },
+    "version": {
+      "type": "string",
+      "description": "Board version string, e.g. 1.0.0, v1.2. Used to distinguish board revisions in the build manager.",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when this manifest was generated."
+    },
+    "board_bounds": {
+      "type": "object",
+      "description": "Bounding box of the board in mm, in the same coordinate system as component positions. The SVG viewport is sized to this box.",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": {"type": "number", "description": "Left edge of board in mm"},
+        "y": {"type": "number", "description": "Top edge of board in mm"},
+        "width": {"type": "number", "description": "Board width in mm", "exclusiveMinimum": 0},
+        "height": {"type": "number", "description": "Board height in mm", "exclusiveMinimum": 0}
+      }
+    },
+    "layers": {
+      "type": "object",
+      "description": "Map of logical layer name to SVG filename within the zip. All SVGs share the board_bounds viewport.",
+      "required": ["f_mask", "f_paste", "edge_cuts", "f_silks"],
+      "additionalProperties": false,
+      "properties": {
+        "f_mask":      {"type": "string", "description": "Front solder mask SVG path, e.g. svg/f_mask.svg"},
+        "f_paste":     {"type": "string", "description": "Front solder paste SVG path"},
+        "edge_cuts":   {"type": "string", "description": "Board outline SVG path"},
+        "f_silks":     {"type": "string", "description": "Front silkscreen SVG path"},
+        "pth_drills":  {"type": "string", "description": "PTH drill holes SVG path (optional — omit if board has no PTH holes)"},
+        "npth_drills": {"type": "string", "description": "NPTH drill holes SVG path (optional — omit if board has no NPTH holes)"}
+      }
+    },
+    "components": {
+      "type": "array",
+      "description": "All components on the board. Includes DNP and exclude_from_bom items (flagged accordingly); the build manager decides what to show.",
+      "items": {
+        "$ref": "bom-entry.schema.json"
+      }
+    }
+  }
+}

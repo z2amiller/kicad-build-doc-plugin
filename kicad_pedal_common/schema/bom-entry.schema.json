@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/andrewmiller/kicad-pedal-common/schema/bom-entry.schema.json",
+  "title": "BomEntry",
+  "description": "One component entry in a pedal build manifest.",
+  "type": "object",
+  "required": ["ref", "value", "footprint", "layer", "pos_x", "pos_y", "rotation"],
+  "additionalProperties": false,
+  "properties": {
+    "ref": {
+      "type": "string",
+      "description": "Reference designator, e.g. R1, C3, Q1, RV1",
+      "minLength": 1
+    },
+    "value": {
+      "type": "string",
+      "description": "Component value, e.g. 10K, 100nF, BC547, DPDT",
+      "minLength": 1
+    },
+    "footprint": {
+      "type": "string",
+      "description": "KiCad footprint library reference, e.g. Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable component description, e.g. Resistor, NPN transistor, Electrolytic capacitor"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text notes about this component visible in the build manager"
+    },
+    "layer": {
+      "type": "string",
+      "enum": ["F", "B"],
+      "description": "Board face: F=front, B=back"
+    },
+    "pos_x": {
+      "type": "number",
+      "description": "X position of component center in mm, in board coordinate system (origin = board bottom-left after kicad-cli --page-size-mode 2)"
+    },
+    "pos_y": {
+      "type": "number",
+      "description": "Y position of component center in mm, in board coordinate system"
+    },
+    "rotation": {
+      "type": "number",
+      "description": "Component rotation in degrees (0-360, counter-clockwise)",
+      "minimum": 0,
+      "exclusiveMaximum": 360
+    },
+    "do_not_populate": {
+      "type": "boolean",
+      "description": "True if this component is marked Do Not Populate in KiCad. Shown in BOM with DNP indicator.",
+      "default": false
+    },
+    "exclude_from_bom": {
+      "type": "boolean",
+      "description": "True if this component is marked Exclude From BOM. Still shown in footprint overlay but omitted from BOM panel.",
+      "default": false
+    },
+    "installed": {
+      "type": "boolean",
+      "description": "True if this component is pre-installed (derived from exclude_from_bom). Rendered on the board overlay in a non-interactive style; omitted from the BOM table.",
+      "default": false
+    },
+    "outline": {
+      "$ref": "#/definitions/ComponentOutline"
+    }
+  },
+  "definitions": {
+    "ComponentOutline": {
+      "type": "object",
+      "description": "Footprint bounding shape for rendering the clickable overlay in the build manager. Coordinates are relative to the component center (pos_x, pos_y); the webapp applies rotation via SVG transform.",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["bbox", "polygon", "svg"],
+          "description": "bbox: axis-aligned rectangle. polygon: arbitrary courtyard polygon. svg: per-footprint SVG files from kicad-cli fp export."
+        },
+        "bbox": {
+          "type": "object",
+          "description": "Axis-aligned bounding box. For type=bbox, w/h are centered at origin (x=y=0 assumed). For type=svg, x/y give the top-left offset from the footprint origin (from courtyard viewBox).",
+          "required": ["w", "h"],
+          "additionalProperties": false,
+          "properties": {
+            "x": {
+              "type": "number",
+              "description": "X offset from footprint origin to bbox left edge (mm). Defaults to 0 (centered) for type=bbox."
+            },
+            "y": {
+              "type": "number",
+              "description": "Y offset from footprint origin to bbox top edge (mm). Defaults to 0 (centered) for type=bbox."
+            },
+            "w": {
+              "type": "number",
+              "description": "Width in mm",
+              "exclusiveMinimum": 0
+            },
+            "h": {
+              "type": "number",
+              "description": "Height in mm",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "overlay_svg": {
+          "type": "string",
+          "description": "Zip-relative path to overlay SVG (F.Courtyard+F.Cu+F.Mask). Present when type=svg."
+        },
+        "fab_svg": {
+          "type": ["string", "null"],
+          "description": "Zip-relative path to fab layer SVG (F.Fab). Present when type=svg and F.Fab export succeeded."
+        },
+        "courtyard_svg": {
+          "type": ["string", "null"],
+          "description": "Zip-relative path to courtyard-only SVG used for precise bbox extraction. Present when type=svg."
+        },
+        "anchor_x": {
+          "type": ["number", "null"],
+          "description": "X position of the footprint origin within the overlay SVG (mm). Derived from board bounding-box centre offset. Falls back to vb_w/2 when absent."
+        },
+        "anchor_y": {
+          "type": ["number", "null"],
+          "description": "Y position of the footprint origin within the overlay SVG (mm). Derived from board bounding-box centre offset. Falls back to vb_h/2 when absent."
+        },
+        "points": {
+          "type": "array",
+          "description": "Polygon points relative to component center. Present when type=polygon.",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["x", "y"],
+            "additionalProperties": false,
+            "properties": {
+              "x": {"type": "number", "description": "X offset from component center in mm"},
+              "y": {"type": "number", "description": "Y offset from component center in mm"}
+            }
+          }
+        }
+      }
+    }
+  }
+}
